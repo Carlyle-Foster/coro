@@ -8,6 +8,10 @@ import "core:sys/linux"
 
 import coroutine "../../../coroutines"
 
+TCP_Socket :: net.TCP_Socket
+TCP_Recv_Error :: net.TCP_Recv_Error
+TCP_Send_Error :: net.TCP_Send_Error
+
 HOST :: "localhost"
 PORT :: "8783"
 
@@ -27,10 +31,11 @@ main :: proc() {
     assert(server_set_blocking_error == nil)
 
     fmt.printfln("[%v] Server listening to %v:%v", coroutine.id(), HOST, PORT)
-    SERVER: for {
+    
+    for {
         coroutine.wait_until(linux.Fd(server), .Readable)
         if quit {
-            break SERVER
+            break
         }
         client, _, accept_err := net.accept_tcp(server)
         assert(accept_err == nil)
@@ -38,56 +43,83 @@ main :: proc() {
         client_set_blocking_error := net.set_blocking(client, should_block=false)
         assert(client_set_blocking_error == nil)
 
-        coroutine.go(proc(arg: rawptr) {
-            fmt.printfln("[%v] Client connected!", coroutine.id())
-
-            client := net.TCP_Socket(uintptr(arg))
-            defer {
-                net.shutdown(client, .Both)
-                net.close(client)
-            }
-
-            buf: [4096]byte
-
-            CLIENT: for {
-                coroutine.wait_until(linux.Fd(client), .Readable)
-                n, recv_err := net.recv_tcp(client, buf[:])
-                if recv_err != nil {
-                    fmt.printfln("[%v] Error when receiving from client: %v", coroutine.id(), recv_err)
-                    break CLIENT
-                }
-                
-                if (n == 0) { // the client closed the connection
-                    break CLIENT
-                }
-
-                chunk: = buf[:n]
-
-                switch strings.trim(string(chunk), " \t\r\n") {
-                    case "quit":
-                        fmt.printfln("[%v] Client requested to quit", coroutine.id())
-                        return
-                    case "shutdown":
-                        fmt.printfln("[%v] Client requested to shutdown the server", coroutine.id())
-                        quit = true
-                        coroutine.signal_other(server_id)
-                        return
-                }
-
-                fmt.printfln("[%v] Client sent %v bytes", coroutine.id(), len(chunk))
-
-                for len(chunk) > 0 {
-                    coroutine.wait_until(linux.Fd(client), .Writeable)
-                    m, send_err := net.send_tcp(client, chunk)
-                    assert(send_err == nil)
-                    if m == 0 {
-                        break CLIENT
-                    }
-                    chunk = chunk[m:]
-                }
-            }
-            fmt.printfln("[%v] Client disconnected", coroutine.id())
-        }, rawptr(uintptr(client)))
+        coroutine.go(serve_client_coroutine, rawptr(uintptr(client)))
     }
+
     fmt.printfln("[%v] Server has been shutdown", coroutine.id())
+}
+
+serve_client_coroutine :: proc(args: rawptr) {
+    serve_client(net.TCP_Socket(uintptr(args)))
+}
+serve_client :: proc(client: TCP_Socket) {
+    fmt.printfln("[%v] Client connected!", coroutine.id())
+
+    buf: [4096]byte
+    defer {
+        net.shutdown(client, .Both)
+        net.close(client)
+    }
+
+    for {
+        message := recieve_message(client, buf[:]) or_break
+
+        switch strings.trim(message, " \t\r\n") {
+        case "quit":
+            fmt.printfln("[%v] Client requested to quit", coroutine.id())
+            return
+        case "shutdown":
+            fmt.printfln("[%v] Client requested to shutdown the server", coroutine.id())
+            quit = true
+            coroutine.signal_other(server_id)
+            return
+        case:
+            fmt.printfln("[%v] Client said %s", coroutine.id(), strings.trim_right_space(message))
+        }
+
+        bytes_echoed := echo_message(client, transmute([]byte)message) or_break
+        fmt.printfln("[%v] echoed %d bytes to client", coroutine.id(), bytes_echoed)
+    }
+
+    fmt.printfln("[%v] Client disconnected", coroutine.id())
+}
+
+recieve_message :: proc(client: TCP_Socket, buf: []byte) -> (string, TCP_Recv_Error) {
+    for {
+        n, err := net.recv_tcp(client, buf)
+
+        #partial switch err {
+        case nil:
+            if n == 0 && len(buf) != 0 {
+                return "", .Connection_Closed
+            }
+            return string(buf[:n]), nil
+        case .Interrupted:
+            continue
+        case .Would_Block:
+            coroutine.wait_until(linux.Fd(client), .Readable)
+        case:
+            fmt.printfln("[%v] Error when receiving from client: %v", coroutine.id(), err)
+            return "", err
+        }
+    }
+}
+
+echo_message :: proc(client: TCP_Socket, message: []byte) -> (bytes_sent: int, err: TCP_Send_Error) {
+    for bytes_sent < len(message) {
+        n: int
+        n, err = net.send_tcp(client, message)
+        bytes_sent += n
+
+        #partial switch err {
+        case .Interrupted:
+            continue
+        case .Would_Block:
+            coroutine.wait_until(linux.Fd(client), .Writeable)
+        case:
+            fmt.printfln("[%v] Error when sending to client: %v", coroutine.id(), err)
+            return
+        }
+    }
+    return
 }
