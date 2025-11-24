@@ -2,8 +2,6 @@ package coroutines
 
 // import "core:fmt"
 
-import c "core:c/libc"
-
 import "core:sys/linux"
 
 foreign import assembly "coroutine.asm"
@@ -99,7 +97,7 @@ __finish_current :: proc() {
 
 @(private)
 switch_context :: proc() {
-    timeout: c.int =  -1 if (len(active) == 0) else 0
+    timeout: i32 =  -1 if (len(active) == 0) else 0
 
     events: [128]linux.EPoll_Event
 
