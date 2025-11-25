@@ -4,6 +4,33 @@ import "core:net"
 
 import sl "selector"
 
+STACK_CAPACITY :: 1024 * 16
+
+// TODO: coroutines library probably does not work well in multithreaded environment
+contexts: [dynamic]Context
+dead:   [dynamic]int
+current: int
+
+active: [dynamic]int
+
+selector: sl.Selector
+
+g_waiting_coroutines := 0
+g_reset_in_progress := false
+
+Context :: struct {
+    rsp: rawptr,
+    stack_base: rawptr,
+    active_id: Maybe(Active_Index),
+}
+
+Event_Kind :: enum {
+    Readable,
+    Writeable,
+}
+
+Active_Index :: distinct int
+
 foreign import assembly "coroutine.asm"
 @(link_prefix="coroutine_", default_calling_convention="odin")
 foreign assembly {
