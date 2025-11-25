@@ -1,33 +1,35 @@
 package coroutines
 
-import "core:sys/linux"
+import "core:net"
+
+import sl "selector"
 
 foreign import assembly "coroutine.asm"
 @(link_prefix="coroutine_", default_calling_convention="odin")
 foreign assembly {
-    /*
-    Starts a coroutine to run the proc `f` with `arg` as it's argument.
-    It starts running immediately
+/*
+Starts a coroutine to run the proc `f` with `arg` as it's argument.
+It starts running immediately
 
-    Inputs:
-    - f: The proc to run
-    - arg: An opaque pointer passed to `f`
-    */
-    go          :: proc(f: proc"odin"(rawptr), arg: rawptr) ---
+Inputs:
+- f: The proc to run
+- arg: An opaque pointer passed to `f`
+*/
+go          :: proc(f: proc"odin"(rawptr), arg: rawptr) ---
 
-    /*
-    Hands over control to another active coroutine, if any are ready
-    */
-    yield       :: proc() ---
+/*
+Hands over control to another active coroutine, if any are ready
+*/
+yield       :: proc() ---
 
-    /*
-    waits until the fille descriptor `fd` receives an event of type `event`
+/*
+waits until `socket` receives an event of type `event`
 
-    Inputs:
-    - fd: the file descriptor to wait on
-    - event: the type of event to wait for (usually .Readable or .Writeable)
-    */
-    wait_until  :: proc(fd: linux.Fd, event: Event_Kind) ---
+Inputs:
+- fd: the file descriptor to wait on
+- event: the type of event to wait for (usually .Readable or .Writeable)
+*/
+wait_until  :: proc(socket: net.Socket, event: Event_Kind) ---
 }
 
 /*
@@ -87,13 +89,11 @@ reset_runtime :: proc() {
     }
 
     for ctx in contexts {
-        errno := linux.munmap(ctx.stack_base, STACK_CAPACITY)
-        assert(errno == nil)
+        free_stack(ctx.stack_base, STACK_CAPACITY)
     }
     delete(contexts)
     delete(active)
     delete(dead)
 
-    errno := linux.close(epoll)
-    assert(errno == nil)
+    sl.destroy(&selector)
 }

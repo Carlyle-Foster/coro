@@ -4,10 +4,11 @@ import "core:fmt"
 import "core:net"
 import "core:strings"
 
-import "core:sys/linux"
+// import "core:sys/linux"
 
 import coroutine "../../../coroutines"
 
+Socket :: net.Socket
 TCP_Socket :: net.TCP_Socket
 TCP_Recv_Error :: net.TCP_Recv_Error
 TCP_Send_Error :: net.TCP_Send_Error
@@ -33,7 +34,7 @@ main :: proc() {
     fmt.printfln("[%v] Server listening to %v:%v", coroutine.id(), HOST, PORT)
     
     for {
-        coroutine.wait_until(linux.Fd(server), .Readable)
+        coroutine.wait_until(Socket(server), .Readable)
         if quit {
             break
         }
@@ -97,7 +98,7 @@ recieve_message :: proc(client: TCP_Socket, buf: []byte) -> (string, TCP_Recv_Er
         case .Interrupted:
             continue
         case .Would_Block:
-            coroutine.wait_until(linux.Fd(client), .Readable)
+            coroutine.wait_until(Socket(client), .Readable)
         case:
             fmt.printfln("[%v] Error when receiving from client: %v", coroutine.id(), err)
             return "", err
@@ -112,10 +113,10 @@ echo_message :: proc(client: TCP_Socket, message: []byte) -> (bytes_sent: int, e
         bytes_sent += n
 
         #partial switch err {
-        case .Interrupted:
+        case .None, .Interrupted:
             continue
         case .Would_Block:
-            coroutine.wait_until(linux.Fd(client), .Writeable)
+            coroutine.wait_until(Socket(client), .Writeable)
         case:
             fmt.printfln("[%v] Error when sending to client: %v", coroutine.id(), err)
             return

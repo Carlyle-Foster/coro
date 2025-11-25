@@ -2,7 +2,9 @@ package coroutines
 
 // import "core:fmt"
 
-import "core:sys/linux"
+import "core:net"
+
+import sl "selector"
 
 foreign import assembly "coroutine.asm"
 @(link_prefix="coroutine_", default_calling_convention="odin")
@@ -17,9 +19,8 @@ ensure_init :: #force_inline proc() {
         append(&contexts, Context{ active_id = 0 })
         append(&active, 0)
 
-        epoll_create_err: linux.Errno
-        epoll, epoll_create_err = linux.epoll_create1({})
-        assert(epoll_create_err == nil)
+        selector_init_err := sl.init(&selector)
+        assert(selector_init_err == nil)
     }
 }
 
@@ -36,9 +37,7 @@ __go :: proc(f: proc(rawptr), arg: rawptr, rsp: rawptr) {
         append(&contexts, Context{})
         id = len(contexts)-1
 
-        mmap_err: linux.Errno
-        contexts[id].stack_base, mmap_err = linux.mmap(0, STACK_CAPACITY, {.WRITE, .READ}, {.PRIVATE, .STACK, .ANONYMOUS, .GROWSDOWN})
-        assert(mmap_err == .NONE)
+        contexts[id].stack_base = allocate_stack(STACK_CAPACITY)
     }
     append(&active, id)
     current = len(active)-1
@@ -60,8 +59,8 @@ __yield :: proc(rsp: rawptr) {
 }
 
 @(private, export)
-__wait_until :: proc(fd: linux.Fd, event: Event_Kind, rsp: rawptr) {
-    fd := fd
+__wait_until :: proc(socket: net.Socket, event: Event_Kind, rsp: rawptr) {
+    // fd := fd
     
     ensure_init()
 
@@ -70,17 +69,21 @@ __wait_until :: proc(fd: linux.Fd, event: Event_Kind, rsp: rawptr) {
 
     unordered_remove(&active, current)
 
-    errno: linux.Errno
-    fd, errno = linux.dup(fd)
-    assert(errno == nil)
-    errno = linux.epoll_ctl(
-        epoll,
-        .ADD,
-        fd,
-        &{ events={ .RDNORM if event == .Readable else .WRNORM, .ONESHOT },
-        data={ u64=u64(self) } },
-    )
-    assert(errno == nil)
+    // errno: linux.Errno
+    // fd, errno = linux.dup(fd)
+    // assert(errno == nil)
+    // errno = linux.epoll_ctl(
+    //     epoll,
+    //     .ADD,
+    //     fd,
+    //     &{ events={ .RDNORM if event == .Readable else .WRNORM, .ONESHOT },
+    //     data={ u64=u64(self) } },
+    // )
+    // assert(errno == nil)
+
+    interest: sl.Interest = .Readable if event == .Readable else .Writeable
+
+    sl.register_socket(&selector, socket, { interest, .One_Shot }, self)
 
     switch_context()
 }
@@ -97,15 +100,15 @@ __finish_current :: proc() {
 
 @(private)
 switch_context :: proc() {
-    timeout: i32 =  -1 if (len(active) == 0) else 0
+    timeout: Maybe(uint) =  nil if (len(active) == 0) else 0
 
-    events: [128]linux.EPoll_Event
+    events: [128]sl.Event
 
-    event_count, epoll_wait_err := linux.epoll_wait(epoll, raw_data(events[:]), len(events), timeout)
-    assert(epoll_wait_err == .NONE)
+    event_count, select_err := sl.select(&selector, events[:], timeout)
+    assert(select_err == nil)
 
     for event in events[:event_count] {
-        ctx_id := int(event.data.u64)
+        ctx_id := event.id
         append(&active, ctx_id)
         contexts[ctx_id].active_id = Active_Index(len(active)-1)
     }

@@ -1,8 +1,8 @@
 package coroutines
 
-import "core:sys/linux"
+import sl "selector"
 
-STACK_CAPACITY: uint = 1024 * 64
+STACK_CAPACITY :: 1024 * 16
 
 // TODO: coroutines library probably does not work well in multithreaded environment
 contexts: [dynamic]Context
@@ -11,7 +11,7 @@ current: int
 
 active: [dynamic]int
 
-epoll: linux.Fd
+selector: sl.Selector
 
 g_waiting_coroutines := 0
 g_reset_in_progress := false
