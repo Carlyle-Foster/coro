@@ -60,26 +60,12 @@ __yield :: proc(rsp: rawptr) {
 
 @(private, export)
 __wait_until :: proc(socket: net.Socket, event: Event_Kind, rsp: rawptr) {
-    // fd := fd
-    
     ensure_init()
 
     self := active[current]
     contexts[self].rsp = rsp
 
     unordered_remove(&active, current)
-
-    // errno: linux.Errno
-    // fd, errno = linux.dup(fd)
-    // assert(errno == nil)
-    // errno = linux.epoll_ctl(
-    //     epoll,
-    //     .ADD,
-    //     fd,
-    //     &{ events={ .RDNORM if event == .Readable else .WRNORM, .ONESHOT },
-    //     data={ u64=u64(self) } },
-    // )
-    // assert(errno == nil)
 
     interest: sl.Interest = .Readable if event == .Readable else .Writeable
 

@@ -9,6 +9,11 @@ allocate_stack :: proc(size: int) -> rawptr {
 }
 
 free_stack :: proc(stack: rawptr, size: int) {
+    if stack == nil {
+        return
+    }
+    
     errno := linux.munmap(stack, uint(size))
+    
     assert(errno == nil)
 }

@@ -87,6 +87,7 @@ Inputs:
 */
 signal_other :: proc(id: int) {
     assert(len(contexts) > 0)
+    
     append(&active, id)
     contexts[id].active_id = Active_Index(id)
 }
