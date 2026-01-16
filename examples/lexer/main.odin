@@ -9,7 +9,7 @@ package lexer
 import "core:fmt"
 import "core:os/os2"
 
-import coroutine "../../../coroutines"
+import co "../../../coroutines"
 
 tk_op :: distinct rune
 tk_int :: distinct int
@@ -21,8 +21,8 @@ TokenValue :: union {
 
 token_value: TokenValue
 
-lex :: proc(input_void: rawptr) {
-    input := (cast(^string)input_void)^
+lex :: proc(cc: co.Caller, arg: rawptr) {
+    input := (cast(^string)arg)^
 
     for rn in input {
         switch rn {
@@ -34,7 +34,7 @@ lex :: proc(input_void: rawptr) {
             return
         }
         // For every token we consume, we yield control back to the caller (a parser, I guess).
-        coroutine.yield()
+        co.yield(cc)
 
         token_value = nil // clear the already read value
     }
@@ -46,11 +46,12 @@ main :: proc() {
         os2.exit(1)
     }
 
-    coroutine.go(lex, &os2.args[1])
+    lexer := co.create(lex, &os2.args[1])
 
     // Consume those tokens
     PARSE: for {
-        // Yield control to the lexer.
+        co.resume(lexer) // Yield control to the lexer.
+        
         // It will lex and yield control back to here.
         switch v in token_value {
         case tk_int:
@@ -61,6 +62,5 @@ main :: proc() {
             fmt.printfln("Done!")
             break PARSE
         }
-        coroutine.yield()
     }
 }

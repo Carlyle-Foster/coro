@@ -1,127 +1,115 @@
 package coroutines
 
-import "core:net"
+import "base:runtime"
 
-import sl "selector"
+Allocator_Error :: runtime.Allocator_Error
 
 STACK_CAPACITY :: 1024 * 16
 
-// TODO: coroutines library probably does not work well in multithreaded environment
-contexts: [dynamic]Context
-dead:   [dynamic]int
-current: int
-
-active: [dynamic]int
-
-selector: sl.Selector
-
-g_waiting_coroutines := 0
-g_reset_in_progress := false
-
-Context :: struct {
+Coroutine :: struct {
     rsp: rawptr,
     stack_base: rawptr,
-    active_id: Maybe(Active_Index),
+    finished: bool,
 }
 
-Event_Kind :: enum {
-    Readable,
-    Writeable,
-}
+Caller  :: distinct rawptr
+ID      :: distinct int
 
-Active_Index :: distinct int
-
-foreign import assembly "coroutine.asm"
-@(link_prefix="coroutine_", default_calling_convention="odin")
-foreign assembly {
 /*
 Starts a coroutine to run the proc `f` with `arg` as it's argument.
-It starts running immediately
+It does not start running until you call `resume()` on it.
 
 Inputs:
 - f: The proc to run
 - arg: An opaque pointer passed to `f`
 */
-go          :: proc(f: proc"odin"(rawptr), arg: rawptr) ---
+create :: proc(f: proc(Caller, rawptr), arg: rawptr, allocator := context.allocator) -> (co: ^Coroutine, err: Allocator_Error) #optional_allocator_error {
+    context.allocator = allocator
 
-/*
-Hands over control to another active coroutine, if any are ready
-*/
-yield       :: proc() ---
+    coroutine := new(Coroutine) or_return
+    stack_base := allocate_stack(STACK_CAPACITY)
+    odin_context_ptr := get_context_ptr()
 
-/*
-waits until `socket` receives an event of type `event`
+    synthetic_registers := []rawptr{
+        nil, // push r15
+        nil, // push r14
+        nil, // push r13
+        nil, // push r12
+        nil, // push rbx
+        nil, // push rbp
 
-Inputs:
-- fd: the file descriptor to wait on
-- event: the type of event to wait for (usually .Readable or .Writeable)
-*/
-wait_until  :: proc(socket: net.Socket, event: Event_Kind) ---
+        odin_context_ptr,   // push rdx
+        arg,                // push rsi
+        rawptr(coroutine),  // push rdi
+        rawptr(f),
+
+        rawptr(co_finish),
+        rawptr(coroutine),
+        odin_context_ptr,
+    }
+    rsp := stack_base[len(stack_base)-len(synthetic_registers):]
+    copy(rsp, synthetic_registers)
+
+    coroutine.rsp        = raw_data(rsp)
+    coroutine.stack_base = raw_data(stack_base)
+
+    return coroutine, nil
 }
 
 /*
-Waits for all other coroutines to finish, except for other coroutines who are doing likewise
+Returns control to the calling coroutine
 */
-wait_for_others :: proc() {
-    g_waiting_coroutines += 1
-    defer g_waiting_coroutines -= 1
+yield :: proc(caller: Caller) {
+    #force_inline resume((^Coroutine)(caller))
+}
 
-    for len(active) > 1 {
-        yield()
+resume :: proc(coroutine: ^Coroutine) {
+    #force_inline co_resume(coroutine)
+}
 
-        assert(g_waiting_coroutines <= len(active))
+my_id :: proc(caller: Caller) -> ID {
+    stack_base := (^Coroutine)(caller).stack_base
 
-        waiting := g_waiting_coroutines + 1 if g_reset_in_progress else g_waiting_coroutines
+    return ID(uintptr(stack_base))
+}
 
-        if waiting >= len(active) {
-            return // avoids deadlocks
+alternate :: proc(coroutines: ..^Coroutine) {
+    for {
+        finished := true
+
+        for coroutine in coroutines {
+            if !coroutine.finished {
+                resume(coroutine)
+                finished = false
+            }
+        }
+        if finished {
+            break
         }
     }
 }
 
-/*
-Signals another coroutine, causing it to become active
-
-Inputs:
-- id: the ID of the coroutine to signal
-*/
-signal_other :: proc(id: int) {
-    assert(len(contexts) > 0)
-    
-    append(&active, id)
-    contexts[id].active_id = Active_Index(id)
+foreign import assembly "coroutine.asm"
+@(private, default_calling_convention="odin")
+foreign assembly {
+    co_resume           :: proc(coroutine: ^Coroutine) ---
+    co_restore_context  :: proc(rsp: rawptr) ---
+    co_finish           :: proc(coroutine: ^Coroutine) ---
+    get_context_ptr     :: proc() -> rawptr ---
 }
 
-/*
-Returns the ID of the currently running coroutine
+@(private, export)
+__resume :: proc(coroutine: ^Coroutine, rsp: rawptr) {
+    rsp := rsp
 
-Returns:
-- The ID of the currently running coroutine
-*/
-id :: proc() -> int {
-    return active[current] if len(active) > 0 else 0
+    coroutine.rsp, rsp = rsp, coroutine.rsp
+
+    co_restore_context(rsp)
 }
 
-/*
-waits for all other coroutines to finish and resets the runtime, is reentrant
-*/
-reset_runtime :: proc() {
-    if g_reset_in_progress {
-         return
-    }
-    g_reset_in_progress = true
-    defer g_reset_in_progress = false
+@(private, export)
+__finish :: proc(coroutine: ^Coroutine) {
+    coroutine.finished = true
 
-    for len(active) > 1 {
-        yield()
-    }
-
-    for ctx in contexts {
-        free_stack(ctx.stack_base, STACK_CAPACITY)
-    }
-    delete(contexts)
-    delete(active)
-    delete(dead)
-
-    sl.destroy(&selector)
+    __resume(coroutine, nil)
 }

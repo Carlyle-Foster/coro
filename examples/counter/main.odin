@@ -2,22 +2,34 @@ package counter
 
 import "core:fmt"
 
-import coroutine "../../../coroutines"
+import co "../../../coroutines"
 
-counter :: proc(arg: rawptr) {
+counter :: proc(cc: co.Caller, arg: rawptr) {
     n := int(uintptr(arg))
-    for i in 0..<n {
-        fmt.printfln("[%v] %v", coroutine.id(), i)
-        coroutine.yield()
+    for i in 1..=n {
+        fmt.printfln("%d / %d", i, n)
+        co.yield(cc)
     }
 }
 
 main :: proc() {
-    coroutine.go(proc(arg: rawptr) {
-        fmt.printfln("[%v] Hello from odin Lambda (a non-capturing lambda, mind you)", coroutine.id())
-    }, nil)
-    coroutine.go(counter, rawptr(uintptr(5)))
-    coroutine.go(counter, rawptr(uintptr(10)))
-    coroutine.wait_for_others()
-    fmt.printfln("[%v] all done!", coroutine.id())
+    hello := co.create(
+        proc(cc: co.Caller, arg: rawptr) {
+            fmt.printfln("Hello from an odin Lambda (a non-capturing lambda, mind you)")
+        },
+        nil,
+    )
+    co.resume(hello)
+
+    // assert(hello.finished)
+
+    counters := []^co.Coroutine{
+        co.create(counter, rawptr(uintptr(5))),
+        co.create(counter, rawptr(uintptr(10))),
+        co.create(counter, rawptr(uintptr(1))),
+    }
+
+    co.alternate(..counters)
+    
+    fmt.printfln("(back in the main routine..) all done!")
 }

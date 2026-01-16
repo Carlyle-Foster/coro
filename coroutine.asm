@@ -11,55 +11,59 @@ section .note.GNU-stack
 
 section .text
 
-extern __finish_current
+extern __resume
+extern __finish
 
-global coroutine_start
-global coroutine_restore_context
+global co_resume
+global co_restore_context
+global co_finish
+global get_context_ptr
 
-extern __go
-extern __yield
-extern __wait_until
+%macro save_registers 0
+    push rdi
+    push rsi
+    push rdx
+    push rbp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+%endmacro
 
-global coroutine_go
-global coroutine_yield
-global coroutine_wait_until
+%macro restore_registers 0
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    pop rdx
+    pop rsi
+    pop rdi
+%endmacro
 
-coroutine_go:
-    mov rcx, rdx
-    mov rdx, rsp
-    jmp [rel __go wrt ..got]
+co_resume:
+    save_registers
 
-coroutine_yield:
-    mov rsi, rdi
-    mov rdi, rsp
-    jmp [rel __yield wrt ..got]
+    mov rdx, rsi
+    mov rsi, rsp ; injecting the stack pointer
 
-coroutine_wait_until:
-    mov rcx, rdx
-    mov rdx, rsp
-    jmp [rel __wait_until wrt ..got]
+    jmp [rel __resume wrt ..got]
 
-coroutine_start:
-    mov rsp, rdx ; switch stacks
+co_finish:
+    pop rdi
+    pop rsi
+    push 0 ; for alignment
+    jmp [rel __finish wrt ..got]
 
-    ; setup the stack
-    push qword 0    ; for alignment
-    push rcx        ; implicit context pointer, popped by finish_current
-    lea rax, [rel finish_current]
-    push rax
 
-    mov rax, rdi    ; save f in rax
-     
-    mov rdi, rsi    ; arg (for f)
-    mov rsi, rcx    ; implicit context pointer (for f)
+co_restore_context:
+    mov rsp, rdi ; switch stacks
+    
+    restore_registers
+    ret
 
-    jmp rax         ; jump to f
-
-finish_current:
-    pop rdi ; implicit context pointer
-
-    jmp [rel __finish_current wrt ..got]
-
-coroutine_restore_context:
-    mov rsp, rdi
+get_context_ptr:
+    mov rax, rdi
     ret
