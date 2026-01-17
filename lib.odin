@@ -10,6 +10,7 @@ Coroutine :: struct {
     rsp: rawptr,
     stack_base: rawptr,
     finished: bool,
+    args: rawptr,
 }
 
 Caller  :: distinct rawptr
@@ -23,10 +24,14 @@ Inputs:
 - f: The proc to run
 - arg: An opaque pointer passed to `f`
 */
-create :: proc(f: proc(Caller, rawptr), arg: rawptr, allocator := context.allocator) -> (co: ^Coroutine, err: Allocator_Error) #optional_allocator_error {
+create_raw :: proc(f: proc(Caller, rawptr), arg: rawptr, allocator := context.allocator) -> (^Coroutine, Allocator_Error) #optional_allocator_error {
     context.allocator = allocator
 
-    coroutine := new(Coroutine) or_return
+    coroutine, allocation_err := new(Coroutine)
+    if allocation_err != nil {
+        return nil, allocation_err
+    }
+    
     stack_base := allocate_stack(STACK_CAPACITY)
     odin_context_ptr := get_context_ptr()
 
@@ -54,6 +59,16 @@ create :: proc(f: proc(Caller, rawptr), arg: rawptr, allocator := context.alloca
     coroutine.stack_base = raw_data(stack_base)
 
     return coroutine, nil
+}
+
+destroy :: proc(coroutine: ^Coroutine, allocator := context.allocator) {
+    free_stack(coroutine.stack_base, STACK_CAPACITY)
+
+    if coroutine.args != nil {
+        free(coroutine.args, allocator)
+    }
+
+    free(coroutine, allocator)
 }
 
 /*

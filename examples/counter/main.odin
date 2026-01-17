@@ -4,8 +4,7 @@ import "core:fmt"
 
 import co "../../../coroutines"
 
-counter :: proc(cc: co.Caller, arg: rawptr) {
-    n := int(uintptr(arg))
+counter :: proc(cc: co.Caller, n: int) {
     for i in 1..=n {
         fmt.printfln("%d / %d", i, n)
         co.yield(cc)
@@ -21,15 +20,20 @@ main :: proc() {
     )
     co.resume(hello)
 
-    // assert(hello.finished)
+    assert(hello.finished)
+    co.destroy(hello)
 
     counters := []^co.Coroutine{
-        co.create(counter, rawptr(uintptr(5))),
-        co.create(counter, rawptr(uintptr(10))),
-        co.create(counter, rawptr(uintptr(1))),
+        co.create(counter, 5),
+        co.create(counter, 10),
+        co.create(counter, 1),
     }
 
     co.alternate(..counters)
     
     fmt.printfln("(back in the main routine..) all done!")
+
+    for counter in counters {
+        co.destroy(counter)
+    }
 }
