@@ -2,7 +2,7 @@ package counter
 
 import "core:fmt"
 
-import co "../../../coroutines"
+import co "../../../coroutines/default"
 
 counter :: proc(cc: co.Caller, n: int) {
     for i in 1..=n {
@@ -13,15 +13,11 @@ counter :: proc(cc: co.Caller, n: int) {
 
 main :: proc() {
     hello := co.create(
-        proc(cc: co.Caller, arg: rawptr) {
-            fmt.printfln("Hello from an odin Lambda (a non-capturing lambda, mind you)")
-        },
-        nil,
+        proc(cc: co.Caller) {fmt.printfln("Hello from an odin Lambda (a non-capturing lambda, mind you)")},
     )
     co.resume(hello)
 
     assert(hello.finished)
-    co.destroy(hello)
 
     counters := []^co.Coroutine{
         co.create(counter, 5),
@@ -32,8 +28,4 @@ main :: proc() {
     co.alternate(..counters)
     
     fmt.printfln("(back in the main routine..) all done!")
-
-    for counter in counters {
-        co.destroy(counter)
-    }
 }

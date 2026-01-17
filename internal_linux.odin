@@ -4,20 +4,22 @@ import "core:slice"
 
 import "core:sys/linux"
 
-allocate_stack :: proc(size: int) -> []rawptr {
+_allocate_stack :: proc(size: int) -> Stack {
+    ensure(size % 16 == 0)
+
     stack, err := linux.mmap(0, uint(size), {.WRITE, .READ}, {.PRIVATE, .STACK, .ANONYMOUS, .GROWSDOWN})
 
     assert(err == nil)
 
-    return slice.reinterpret([]rawptr, slice.bytes_from_ptr(stack, size))
+    return Stack(slice.bytes_from_ptr(stack, size))
 }
 
-free_stack :: proc(stack: rawptr, size: int) {
+_free_stack :: proc(stack: Stack) {
     if stack == nil {
         return
     }
     
-    errno := linux.munmap(stack, uint(size))
+    errno := linux.munmap(raw_data(stack), len(stack))
     
     assert(errno == nil)
 }

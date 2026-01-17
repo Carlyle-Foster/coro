@@ -1,41 +1,33 @@
 package coroutines
 
-import "base:runtime"
-
-Allocator_Error :: runtime.Allocator_Error
-
-STACK_CAPACITY :: 1024 * 16
+import "core:slice"
 
 Coroutine :: struct {
     rsp: rawptr,
-    stack_base: rawptr,
+    stack: Stack,
     finished: bool,
-    args: rawptr,
+}
+Caller :: distinct ^Coroutine
+
+Stack :: distinct []byte
+
+allocate_stack :: proc(size: int) -> Stack {
+    return _allocate_stack(size)
 }
 
-Caller  :: distinct ^Coroutine
-ID      :: distinct int
+free_stack :: proc(stack: Stack) {
+    _free_stack(stack)
+}
 
-/*
-Starts a coroutine to run the proc `f` with `arg` as it's argument.
-It does not start running until you call `resume()` on it.
+create :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: proc(^Coroutine, rawptr), on_finish_arg: rawptr) -> ^Coroutine {   
+    #assert(size_of(Coroutine) % 16 == 0)    
+    n := len(stack) - (size_of(Coroutine))
 
-Inputs:
-- f: The proc to run
-- arg: An opaque pointer passed to `f`
-*/
-create_raw :: proc(f: proc(Caller, rawptr), arg: rawptr, allocator := context.allocator) -> (^Coroutine, Allocator_Error) #optional_allocator_error {
-    context.allocator = allocator
+    coroutine := cast(^Coroutine)raw_data(stack[n:])
 
-    coroutine, allocation_err := new(Coroutine)
-    if allocation_err != nil {
-        return nil, allocation_err
-    }
-    
-    stack_base := allocate_stack(STACK_CAPACITY)
     odin_context_ptr := get_context_ptr()
 
-    synthetic_registers := []rawptr{
+    synthetic_registers := [?]rawptr{
         nil, // push r15
         nil, // push r14
         nil, // push r13
@@ -52,56 +44,21 @@ create_raw :: proc(f: proc(Caller, rawptr), arg: rawptr, allocator := context.al
         rawptr(coroutine),
         odin_context_ptr,
     }
-    rsp := stack_base[len(stack_base)-len(synthetic_registers):]
-    copy(rsp, synthetic_registers)
+    rsp := stack[n - size_of(synthetic_registers):]
+    copy(slice.reinterpret([]rawptr, ([]byte)(rsp)), synthetic_registers[:])
 
-    coroutine.rsp        = raw_data(rsp)
-    coroutine.stack_base = raw_data(stack_base)
+    coroutine.rsp   = raw_data(rsp)
+    coroutine.stack = stack
 
-    return coroutine, nil
+    return coroutine
 }
 
-destroy :: proc(coroutine: ^Coroutine, allocator := context.allocator) {
-    free_stack(coroutine.stack_base, STACK_CAPACITY)
-
-    if coroutine.args != nil {
-        free(coroutine.args, allocator)
-    }
-
-    free(coroutine, allocator)
-}
-
-/*
-Returns control to the calling coroutine
-*/
 yield :: proc(caller: Caller) {
-    #force_inline resume((^Coroutine)(caller))
+    #force_inline co_resume((^Coroutine)(caller))
 }
 
 resume :: proc(coroutine: ^Coroutine) {
     #force_inline co_resume(coroutine)
-}
-
-my_id :: proc(caller: Caller) -> ID {
-    stack_base := (^Coroutine)(caller).stack_base
-
-    return ID(uintptr(stack_base))
-}
-
-alternate :: proc(coroutines: ..^Coroutine) {
-    for {
-        finished := true
-
-        for coroutine in coroutines {
-            if !coroutine.finished {
-                resume(coroutine)
-                finished = false
-            }
-        }
-        if finished {
-            break
-        }
-    }
 }
 
 foreign import assembly "coroutine.asm"
