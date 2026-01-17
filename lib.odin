@@ -1,5 +1,7 @@
 package coroutines
 
+import "base:runtime"
+
 import "core:slice"
 
 Coroutine :: struct {
@@ -10,7 +12,7 @@ Caller :: distinct ^Coroutine
 
 Stack :: distinct []byte
 
-allocate_stack :: proc(size: int) -> Stack {
+allocate_stack :: proc(size: int) -> (Stack, runtime.Allocator_Error) #optional_allocator_error {
     return _allocate_stack(size)
 }
 
