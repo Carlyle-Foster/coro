@@ -73,7 +73,11 @@ unsafe_resume :: proc(coroutine: ^Coroutine) -> (unfinished: bool) {
     return swap_stacks(&coroutine.rsp)
 }
 
-foreign import assembly "coroutine.asm"
+when ODIN_ARCH == .amd64 {
+    foreign import assembly "impl_amd64.asm"
+} else {
+    #assert(false, "unsupported architecture")
+}
 @(private)
 foreign assembly {
     get_context_ptr     :: proc "odin" () -> rawptr ---
