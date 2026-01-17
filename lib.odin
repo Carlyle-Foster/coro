@@ -13,7 +13,7 @@ Coroutine :: struct {
     args: rawptr,
 }
 
-Caller  :: distinct rawptr
+Caller  :: distinct ^Coroutine
 ID      :: distinct int
 
 /*
