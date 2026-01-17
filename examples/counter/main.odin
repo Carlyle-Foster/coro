@@ -2,7 +2,7 @@ package counter
 
 import "core:fmt"
 
-import co "../../../coroutines/default"
+import co "../../../coroutines/basic"
 
 counter :: proc(cc: co.Caller, n: int) {
     for i in 1..=n {
