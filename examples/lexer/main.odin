@@ -50,7 +50,7 @@ main :: proc() {
 
     // Consume those tokens
     PARSE: for {
-        co.resume(lexer) // Yield control to the lexer.
+        co.resume(&lexer) // Yield control to the lexer.
         
         // It will lex and yield control back to here.
         switch v in token_value {

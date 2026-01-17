@@ -7,7 +7,9 @@ Caller      :: co.Caller
 Stack       :: co.Stack
 
 PER_COROUTINE_STORAGE   :: 128
-DEFAULT_STACK_CAPACITY  :: 1024 * 16 - PER_COROUTINE_STORAGE 
+DEFAULT_STACK_CAPACITY  :: 1024 * 16 - PER_COROUTINE_STORAGE
+
+#assert(PER_COROUTINE_STORAGE % 16 == 0)
 
 create_raw :: proc(f: proc(Caller, rawptr), args: $T) -> ^Coroutine where size_of(T) <= PER_COROUTINE_STORAGE {
     stack := co.allocate_stack(DEFAULT_STACK_CAPACITY + PER_COROUTINE_STORAGE)
@@ -29,9 +31,8 @@ yield   :: co.yield
 alternate :: proc(coroutines: ..^Coroutine) {
     for {
         finished := true
-        for coroutine in coroutines {
-            if !coroutine.finished {
-                co.resume(coroutine)
+        for &coroutine in coroutines {
+            if co.resume(&coroutine) {
                 finished = false
             }
         }

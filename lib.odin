@@ -5,7 +5,6 @@ import "core:slice"
 Coroutine :: struct {
     rsp: rawptr,
     stack: Stack,
-    finished: bool,
 }
 Caller :: distinct ^Coroutine
 
@@ -19,8 +18,10 @@ free_stack :: proc(stack: Stack) {
     _free_stack(stack)
 }
 
-create :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: proc(^Coroutine, rawptr), on_finish_arg: rawptr) -> ^Coroutine {   
-    #assert(size_of(Coroutine) % 16 == 0)    
+create :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: proc(^Coroutine, rawptr), on_finish_arg: rawptr) -> ^Coroutine {
+    assert(len(stack) % 16 == 0)
+
+    #assert(size_of(Coroutine) % 16 == 8)
     n := len(stack) - (size_of(Coroutine))
 
     coroutine := cast(^Coroutine)raw_data(stack[n:])
@@ -40,8 +41,9 @@ create :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: pr
         rawptr(coroutine),  // push rdi
         rawptr(f),
 
-        rawptr(co_finish),
-        rawptr(coroutine),
+        rawptr(finish_coroutine),
+        rawptr(on_finish),
+        on_finish_arg,
         odin_context_ptr,
     }
     rsp := stack[n - size_of(synthetic_registers):]
@@ -53,35 +55,28 @@ create :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: pr
     return coroutine
 }
 
-yield :: proc(caller: Caller) {
-    #force_inline co_resume((^Coroutine)(caller))
+resume :: proc(coroutine: ^^Coroutine) -> (unfinished: bool) {
+    if coroutine^ != nil {
+        unfinished = swap_stacks(&(coroutine^).rsp)
+        if !unfinished {
+            coroutine^ = nil
+        }
+    }
+    return
 }
 
-resume :: proc(coroutine: ^Coroutine) {
-    #force_inline co_resume(coroutine)
+yield :: proc(caller: Caller) {
+    swap_stacks(&(^Coroutine)(caller).rsp)
+}
+
+unsafe_resume :: proc(coroutine: ^Coroutine) -> (unfinished: bool) {
+    return swap_stacks(&coroutine.rsp)
 }
 
 foreign import assembly "coroutine.asm"
-@(private, default_calling_convention="odin")
+@(private)
 foreign assembly {
-    co_resume           :: proc(coroutine: ^Coroutine) ---
-    co_restore_context  :: proc(rsp: rawptr) ---
-    co_finish           :: proc(coroutine: ^Coroutine) ---
-    get_context_ptr     :: proc() -> rawptr ---
-}
-
-@(private, export)
-__resume :: proc(coroutine: ^Coroutine, rsp: rawptr) {
-    rsp := rsp
-
-    coroutine.rsp, rsp = rsp, coroutine.rsp
-
-    co_restore_context(rsp)
-}
-
-@(private, export)
-__finish :: proc(coroutine: ^Coroutine) {
-    coroutine.finished = true
-
-    __resume(coroutine, nil)
+    get_context_ptr     :: proc "odin" () -> rawptr ---
+    swap_stacks         :: proc(rsp: ^rawptr) -> bool ---
+    finish_coroutine    :: proc() ---
 }

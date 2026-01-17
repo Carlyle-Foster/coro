@@ -15,9 +15,7 @@ main :: proc() {
     hello := co.create(
         proc(cc: co.Caller) {fmt.printfln("Hello from an odin Lambda (a non-capturing lambda, mind you)")},
     )
-    co.resume(hello)
-
-    assert(hello.finished)
+    co.resume(&hello)
 
     counters := []^co.Coroutine{
         co.create(counter, 5),

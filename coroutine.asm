@@ -11,13 +11,9 @@ section .note.GNU-stack
 
 section .text
 
-extern __resume
-extern __finish
-
-global co_resume
-global co_restore_context
-global co_finish
 global get_context_ptr
+global swap_stacks
+global finish_coroutine
 
 %macro save_registers 0
     push rdi
@@ -43,27 +39,33 @@ global get_context_ptr
     pop rdi
 %endmacro
 
-co_resume:
-    save_registers
-
-    mov rdx, rsi
-    mov rsi, rsp ; injecting the stack pointer
-
-    jmp [rel __resume wrt ..got]
-
-co_finish:
-    pop rdi
-    pop rsi
-    push 0 ; for alignment
-    jmp [rel __finish wrt ..got]
-
-
-co_restore_context:
-    mov rsp, rdi ; switch stacks
-    
-    restore_registers
-    ret
-
 get_context_ptr:
     mov rax, rdi
+    ret
+
+swap_stacks:
+    save_registers
+
+    mov rax, [rdi]
+    mov [rdi], rsp
+
+    mov rsp, rax ; switch stacks
+    
+    restore_registers
+    mov rax, 1 ; unfinished = true
+    ret
+
+finish_coroutine:
+    ; setup args for on_finish
+    pop rax ; on_finish
+    pop rsi ; arg
+    pop rdx ; odin context ptr
+    mov rdi, rsp ; ^Coroutine
+
+    pop rsp ; switch stacks
+
+    call rax ; on_finish
+    
+    restore_registers
+    mov rax, 0 ; unfinished = false
     ret
