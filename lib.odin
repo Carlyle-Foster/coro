@@ -2,6 +2,9 @@ package coroutines
 
 import "base:runtime"
 
+import "core:mem/virtual"
+import old_os "core:os"
+
 Coroutine :: struct {
     rsp: rawptr,
     stack: Stack,
@@ -13,11 +16,28 @@ Caller :: distinct ^Coroutine
 Stack :: distinct []byte
 
 allocate_stack :: proc(min_size: int) -> (Stack, runtime.Allocator_Error) #optional_allocator_error {
-    return _allocate_stack(min_size)
+    page_size := old_os.get_page_size()
+    size      := runtime.align_forward(min_size, page_size) + page_size
+
+    stack, err := virtual.reserve_and_commit(uint(size))
+    if err != nil {
+        return nil, err
+    }
+    // remove read/write permissions from the guard page
+    ensure(virtual.protect(raw_data(stack), uint(page_size), {}))
+    // skip past the guard page
+    stack = stack[page_size:] 
+    
+    return Stack(stack), nil
 }
 
 free_stack :: proc(stack: Stack) {
-    _free_stack(stack)
+    page_size := old_os.get_page_size()
+
+    base := rawptr( uintptr(raw_data(stack)) - uintptr(page_size) )
+
+    virtual.decommit(base, uint(page_size))
+    virtual.release(base, uint(page_size))
 }
 
 start :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: proc(^Coroutine, rawptr), on_finish_arg: rawptr) -> ^Coroutine {
