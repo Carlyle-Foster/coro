@@ -12,8 +12,8 @@ Caller :: distinct ^Coroutine
 
 Stack :: distinct []byte
 
-allocate_stack :: proc(size: int) -> (Stack, runtime.Allocator_Error) #optional_allocator_error {
-    return _allocate_stack(size)
+allocate_stack :: proc(min_size: int) -> (Stack, runtime.Allocator_Error) #optional_allocator_error {
+    return _allocate_stack(min_size)
 }
 
 free_stack :: proc(stack: Stack) {
