@@ -46,12 +46,10 @@ main :: proc() {
         os2.exit(1)
     }
 
-    lexer := co.create(lex, &os2.args[1])
+    lexer := co.start(lex, &os2.args[1])
 
     // Consume those tokens
-    PARSE: for {
-        co.resume(&lexer) // Yield control to the lexer.
-        
+    PARSE: for {        
         // It will lex and yield control back to here.
         switch v in token_value {
         case tk_int:
@@ -62,5 +60,7 @@ main :: proc() {
             fmt.printfln("Done!")
             break PARSE
         }
+        
+        co.resume(&lexer) // Yield control to the lexer.
     }
 }

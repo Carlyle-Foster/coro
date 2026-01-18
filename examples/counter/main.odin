@@ -12,18 +12,11 @@ counter :: proc(cc: co.Caller, n: int) {
 }
 
 main :: proc() {
-    hello := co.create(
+    co.start(
         proc(cc: co.Caller) {fmt.printfln("Hello from an odin Lambda (a non-capturing lambda, mind you)")},
     )
-    co.resume(&hello)
 
-    counters := []^co.Coroutine{
-        co.create(counter, 5),
-        co.create(counter, 10),
-        co.create(counter, 1),
-    }
-
-    co.alternate(..counters)
+    co.alternate(co.start(counter, 5), co.start(counter, 10), co.start(counter, 1))
     
     fmt.printfln("(back in the main routine..) all done!")
 }

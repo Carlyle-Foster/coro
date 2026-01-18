@@ -2,12 +2,12 @@ package coroutines
 
 import "base:runtime"
 
-import "core:slice"
-
 Coroutine :: struct {
     rsp: rawptr,
     stack: Stack,
 }
+#assert(offset_of(Coroutine, rsp) == 0)
+
 Caller :: distinct ^Coroutine
 
 Stack :: distinct []byte
@@ -20,46 +20,29 @@ free_stack :: proc(stack: Stack) {
     _free_stack(stack)
 }
 
-create :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: proc(^Coroutine, rawptr), on_finish_arg: rawptr) -> ^Coroutine {
+start :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: proc(^Coroutine, rawptr), on_finish_arg: rawptr) -> ^Coroutine {
     assert(len(stack) % 16 == 0)
 
-    #assert(size_of(Coroutine) % 16 == 8)
-    n := len(stack) - (size_of(Coroutine))
+    // this is one byte AFTER the top of the stack
+    rsp := raw_data(stack[len(stack) - (size_of(Coroutine)):])
 
-    coroutine := cast(^Coroutine)raw_data(stack[n:])
-
-    odin_context_ptr := get_context_ptr()
-
-    synthetic_registers := [?]rawptr{
-        nil, // push r15
-        nil, // push r14
-        nil, // push r13
-        nil, // push r12
-        nil, // push rbx
-        nil, // push rbp
-
-        odin_context_ptr,   // push rdx
-        arg,                // push rsi
-        rawptr(coroutine),  // push rdi
-        rawptr(f),
-
-        rawptr(finish_coroutine),
-        rawptr(on_finish),
-        on_finish_arg,
-        odin_context_ptr,
+    // this doesn't overlap the stack since it goes upward
+    coroutine := cast(^Coroutine)rsp
+    coroutine^ = {
+        rsp,
+        stack,
     }
-    rsp := stack[n - size_of(synthetic_registers):]
-    copy(slice.reinterpret([]rawptr, ([]byte)(rsp)), synthetic_registers[:])
 
-    coroutine.rsp   = raw_data(rsp)
-    coroutine.stack = stack
-
-    return coroutine
+    if start_coroutine(coroutine, arg, f, on_finish, on_finish_arg) {
+        return coroutine
+    } else {
+        return nil
+    }
 }
 
 resume :: proc(coroutine: ^^Coroutine) -> (unfinished: bool) {
     if coroutine^ != nil {
-        unfinished = swap_stacks(&(coroutine^).rsp)
+        unfinished = swap_stacks(coroutine^)
         if !unfinished {
             coroutine^ = nil
         }
@@ -68,21 +51,22 @@ resume :: proc(coroutine: ^^Coroutine) -> (unfinished: bool) {
 }
 
 yield :: proc(caller: Caller) {
-    swap_stacks(&(^Coroutine)(caller).rsp)
+    swap_stacks((^Coroutine)(caller))
 }
 
 unsafe_resume :: proc(coroutine: ^Coroutine) -> (unfinished: bool) {
-    return swap_stacks(&coroutine.rsp)
+    return swap_stacks(coroutine)
 }
 
-when ODIN_ARCH == .amd64 {
-    foreign import assembly "impl_amd64.asm"
+when ODIN_OS != .Windows && ODIN_ARCH == .amd64 {
+    foreign import assembly "impl_amd64_posix.asm"
+} else when ODIN_OS == .Windows && ODIN_ARCH == .amd64 {
+    foreign import assembly "impl_amd64_windows.asm"
 } else {
     #assert(false, "unsupported architecture")
 }
 @(private)
 foreign assembly {
-    get_context_ptr     :: proc "odin" () -> rawptr ---
-    swap_stacks         :: proc(rsp: ^rawptr) -> bool ---
-    finish_coroutine    :: proc() ---
+    start_coroutine :: proc "odin" (^Coroutine, rawptr, proc"odin"(Caller, rawptr), proc"odin"(^Coroutine, rawptr), rawptr) -> bool ---
+    swap_stacks     :: proc(^Coroutine) -> bool ---
 }

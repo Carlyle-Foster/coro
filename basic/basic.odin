@@ -11,13 +11,13 @@ DEFAULT_STACK_CAPACITY  :: 1024 * 16 - PER_COROUTINE_STORAGE
 
 #assert(PER_COROUTINE_STORAGE % 16 == 0)
 
-create_raw :: proc(f: proc(Caller, rawptr), args: $T) -> ^Coroutine where size_of(T) <= PER_COROUTINE_STORAGE {
+start_raw :: proc(f: proc(Caller, rawptr), args: $T) -> ^Coroutine where size_of(T) <= PER_COROUTINE_STORAGE {
     stack := co.allocate_stack(DEFAULT_STACK_CAPACITY + PER_COROUTINE_STORAGE)
 
-    arg := cast(^T)raw_data(stack[PER_COROUTINE_STORAGE:])
+    arg := cast(^T)raw_data(stack[DEFAULT_STACK_CAPACITY:])
     arg^ = args
     
-    return co.create(stack[:DEFAULT_STACK_CAPACITY], f, arg, on_finish, nil)
+    return co.start(stack[:DEFAULT_STACK_CAPACITY], f, arg, on_finish, nil)
 
     on_finish :: proc(coroutine: ^Coroutine, _arg: rawptr) {
         co.free_stack(coroutine.stack)
@@ -29,35 +29,35 @@ resume  :: co.resume
 yield   :: co.yield
 
 alternate :: proc(coroutines: ..^Coroutine) {
-    for {
-        finished := true
+    for finished := false; !finished; {
+        finished  = true
+
         for &coroutine in coroutines {
-            if co.resume(&coroutine) {
+            if coroutine != nil && co.unsafe_resume(coroutine) {
                 finished = false
+            } else {
+                coroutine = nil
             }
-        }
-        if finished {
-            break
         }
     }
 }
 
-create :: proc{
-    create_0,
-    create_1,
-    create_2,
-    create_3,
-    create_4,
+start :: proc{
+    start_0,
+    start_1,
+    start_2,
+    start_3,
+    start_4,
 }
 
-create_0 :: proc($f: proc(Caller)) -> ^Coroutine {
+start_0 :: proc($f: proc(Caller)) -> ^Coroutine {
     Args :: struct{}
     wrapper :: proc(caller: Caller, _: rawptr) {
         f(caller)
     }
-    return create_raw(wrapper, Args{})
+    return start_raw(wrapper, Args{})
 }
-create_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
+start_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
     Args :: struct {
         arg1: T1,
     }    
@@ -65,9 +65,9 @@ create_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
         using args := (^Args)(arg)
         f(caller, arg1)
     }
-    return create_raw(wrapper, Args{arg1})
+    return start_raw(wrapper, Args{arg1})
 }
-create_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
+start_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
     Args :: struct {
         arg1: T1,
         arg2: T2,
@@ -76,9 +76,9 @@ create_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
         using args := (^Args)(arg)
         f(caller, arg1, arg2)
     }
-    return create_raw(wrapper, Args{arg1, arg2})
+    return start_raw(wrapper, Args{arg1, arg2})
 }
-create_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
+start_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
     Args :: struct {
         arg1: T1,
         arg2: T2,
@@ -88,9 +88,9 @@ create_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) 
         using args := (^Args)(arg)
         f(caller, arg1, arg2, arg3)
     }
-    return create_raw(wrapper, Args{arg1, arg2, arg3})
+    return start_raw(wrapper, Args{arg1, arg2, arg3})
 }
-create_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
+start_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
     Args :: struct {
         arg1: T1,
         arg2: T2,
@@ -101,5 +101,5 @@ create_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3:
         using args := (^Args)(arg)
         f(caller, arg1, arg2, arg3, arg4)
     }
-    return create_raw(wrapper, Args{arg1, arg2, arg3, arg4})
+    return start_raw(wrapper, Args{arg1, arg2, arg3, arg4})
 }
