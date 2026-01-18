@@ -97,7 +97,7 @@ start_coroutine:
     
     postlude finished
 
-swap_stacks_organic:
+swap_stacks:
     prelude
 
     postlude unfinished
