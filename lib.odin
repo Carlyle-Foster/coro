@@ -79,9 +79,9 @@ unsafe_resume :: proc(coroutine: ^Coroutine) -> (unfinished: bool) {
 }
 
 when ODIN_OS != .Windows && ODIN_ARCH == .amd64 {
-    foreign import assembly "impl_amd64_posix.asm"
+    foreign import assembly "amd64_posix.asm"
 } else when ODIN_OS == .Windows && ODIN_ARCH == .amd64 {
-    foreign import assembly "impl_amd64_windows.asm"
+    foreign import assembly "amd64_windows.asm"
 } else {
     #assert(false, "unsupported architecture")
 }
