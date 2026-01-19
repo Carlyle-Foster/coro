@@ -9,7 +9,7 @@ package lexer
 import "core:fmt"
 import "core:os/os2"
 
-import co "../../../coroutines/basic"
+import co "../../examples/runtime"
 
 tk_op :: distinct rune
 tk_int :: distinct int

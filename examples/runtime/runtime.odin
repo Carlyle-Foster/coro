@@ -1,6 +1,6 @@
 package co_def
 
-import co "../../coroutines"
+import co "../../../coroutines"
 
 Coroutine   :: co.Coroutine
 Caller      :: co.Caller
