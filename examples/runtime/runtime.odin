@@ -5,10 +5,10 @@ import co "../../../coroutines"
 Coroutine   :: co.Coroutine
 Caller      :: co.Caller
 
-DEFAULT_STACK_CAPACITY  :: 1024 * 16
+STACK_CAPACITY  :: 64 * 1024
 
 start_raw :: proc(f: proc(Caller, rawptr), arg: rawptr) -> ^Coroutine {
-    stack := co.allocate_stack(DEFAULT_STACK_CAPACITY)
+    stack := co.allocate_stack(STACK_CAPACITY)
     
     return co.start(stack, f, arg, on_finish, nil)
 
