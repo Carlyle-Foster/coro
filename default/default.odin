@@ -61,18 +61,22 @@ resume  :: co.resume
 yield   :: co.yield
 
 parallel :: proc(c: Caller, coroutines: ..^Coroutine) {
-    for finished := false; !finished; {
-        co.yield(c)
+    coroutines := coroutines
 
-        finished  = true
-        for &coroutine in coroutines {
-            if coroutine != nil && co.unsafe_resume(coroutine) {
-                finished = false
-            } else {
-                coroutine = nil
-            }
+    for parallel_iter(&coroutines) {
+        yield(c)
+    }
+}
+
+parallel_iter :: proc(coroutines: ^[]^ Coroutine) -> (ok: bool) {
+    for &coroutine in coroutines {
+        if coroutine != nil && co.unsafe_resume(coroutine) {
+            ok = true
+        } else {
+            coroutine = nil
         }
     }
+    return
 }
 
 start :: proc{
@@ -83,33 +87,41 @@ start :: proc{
     start_4,
 }
 
+create :: proc{
+    create_0,
+    create_1,
+    create_2,
+    create_3,
+    create_4,
+}
+
 start_0 :: proc($f: proc(Caller)) -> ^Coroutine {
     Args :: struct{}
-    wrapper :: proc(caller: Caller, _: rawptr) {
-        f(caller)
+    passer :: proc(c: Caller, _: rawptr) {
+        f(c)
     }
-    return start_raw(wrapper, &Args{})
+    return start_raw(passer, &Args{})
 }
 start_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
     Args :: struct {
         arg1: T1,
     }    
-    wrapper :: proc(caller: Caller, arg: rawptr) {
+    passer :: proc(c: Caller, arg: rawptr) {
         using args := (^Args)(arg)
-        f(caller, arg1)
+        f(c, arg1)
     }
-    return start_raw(wrapper, &Args{arg1})
+    return start_raw(passer, &Args{arg1})
 }
 start_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
     Args :: struct {
         arg1: T1,
         arg2: T2,
     }
-    wrapper :: proc(caller: Caller, arg: rawptr) {
+    passer :: proc(caller: c, arg: rawptr) {
         using args := (^Args)(arg)
-        f(caller, arg1, arg2)
+        f(c, arg1, arg2)
     }
-    return start_raw(wrapper, &Args{arg1, arg2})
+    return start_raw(passer, &Args{arg1, arg2})
 }
 start_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
     Args :: struct {
@@ -117,11 +129,11 @@ start_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -
         arg2: T2,
         arg3: T3,
     }
-    wrapper :: proc(caller: Caller, arg: rawptr) {
+    passer :: proc(c: Caller, arg: rawptr) {
         using args := (^Args)(arg)
-        f(caller, arg1, arg2, arg3)
+        f(c, arg1, arg2, arg3)
     }
-    return start_raw(wrapper, &Args{arg1, arg2, arg3})
+    return start_raw(passer, &Args{arg1, arg2, arg3})
 }
 start_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
     Args :: struct {
@@ -130,9 +142,45 @@ start_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: 
         arg3: T3,
         arg4: T4,
     }
-    wrapper :: proc(caller: Caller, arg: rawptr) {
+    passer :: proc(c: Caller, arg: rawptr) {
         using args := (^Args)(arg)
-        f(caller, arg1, arg2, arg3, arg4)
+        f(c, arg1, arg2, arg3, arg4)
     }
-    return start_raw(wrapper, &Args{arg1, arg2, arg3, arg4})
+    return start_raw(passer, &Args{arg1, arg2, arg3, arg4})
+}
+
+create_0 :: proc($f: proc(Caller)) -> ^Coroutine {
+    waiter :: proc(c: Caller) {
+        yield(c)
+        f(c)
+    }
+    return start(waiter)
+}
+create_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
+    waiter :: proc(c: Caller, arg1: T1) {
+        yield(c)
+        f(c, arg1)
+    }
+    return start(waiter, arg1)
+}
+create_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
+    waiter :: proc(c: Caller, arg1: T1, arg2: T2) {
+        yield(c)
+        f(c, arg1, arg2)
+    }
+    return start(waiter, arg1, arg2)
+}
+create_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
+    waiter :: proc(c: Caller, arg1: T1, arg2: T2, arg3: T3) {
+        yield(c)
+        f(c, arg1, arg2, arg3)
+    }
+    return start(waiter, arg1, arg2, arg3)
+}
+create_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
+    waiter :: proc(c: Caller, arg1: T1, arg2: T2, arg3: T3, arg4: T4) {
+        yield(c)
+        f(c, arg1, arg2, arg3, arg4)
+    }
+    return start(waiter, arg1, arg2, arg3, arg4)
 }
