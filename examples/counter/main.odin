@@ -6,17 +6,16 @@ import co "../../examples/runtime"
 
 counter :: proc(cc: co.Caller, n: int) {
     for i in 1..=n {
-        fmt.printfln("%d / %d", i, n)
-        co.yield(cc)
+        // #force_no_inline is just for ease of debugging, it's not needed to repro 
+        #force_no_inline fmt.printfln("%d / %d", i, n)
+        co.yield(cc) // this segfaults with `-o:speed`
     }
 }
 
 main :: proc() {
-    co.start(
-        proc(cc: co.Caller) {fmt.printfln("Hello from an odin Lambda (a non-capturing lambda, mind you)")},
-    )
+    c := co.start(counter, 1)
 
-    co.alternate(co.start(counter, 5), co.start(counter, 10), co.start(counter, 1))
-    
-    fmt.printfln("(back in the main routine..) all done!")
+    co.resume(&c)
+
+    assert(c == nil)
 }

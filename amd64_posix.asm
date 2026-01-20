@@ -16,13 +16,13 @@ global swap_stacks
 %define finished   0
 
 %macro prelude 0
-    push rdx
+    ; push rdx
     push rbp
-    push rbx
-    push r12
-    push r13
-    push r14
-    push r15
+    ; push rbx
+    ; push r12
+    ; push r13
+    ; push r14
+    ; push r15
 
     mov rax, [rdi]
     mov [rdi], rsp
@@ -31,13 +31,13 @@ global swap_stacks
 %endmacro
 
 %macro postlude 1
-    pop r15
-    pop r14
-    pop r13
-    pop r12
-    pop rbx
+    ; pop r15
+    ; pop r14
+    ; pop r13
+    ; pop r12
+    ; pop rbx
     pop rbp
-    pop rdx
+    ; pop rdx
 
     mov rax, %1
     ret

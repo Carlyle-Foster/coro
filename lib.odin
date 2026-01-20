@@ -31,7 +31,9 @@ allocate_stack :: proc(min_size: int) -> (Stack, runtime.Allocator_Error) #optio
     return Stack(stack), nil
 }
 
-free_stack :: proc(stack: Stack) {
+free_stack :: proc "contextless" (stack: Stack) {
+    context = runtime.default_context()
+
     page_size := old_os.get_page_size()
 
     base := rawptr( uintptr(raw_data(stack)) - uintptr(page_size) )
@@ -87,6 +89,6 @@ when ODIN_OS != .Windows && ODIN_ARCH == .amd64 {
 }
 @(private)
 foreign assembly {
-    start_coroutine :: proc "odin" (^Coroutine, rawptr, proc"odin"(Caller, rawptr), proc"odin"(^Coroutine, rawptr), rawptr) -> bool ---
-    swap_stacks     :: proc(^Coroutine) -> bool ---
+    start_coroutine :: proc "preserve/none" (^Coroutine, rawptr, proc"odin"(Caller, rawptr), proc"odin"(^Coroutine, rawptr), rawptr) -> bool ---
+    swap_stacks     :: proc "preserve/none" (^Coroutine) -> bool ---
 }
