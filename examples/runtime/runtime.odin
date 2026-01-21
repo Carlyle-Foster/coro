@@ -1,5 +1,7 @@
 package ex_rt
 
+import "base:intrinsics"
+
 import co "../../../coroutines"
 
 Coroutine   :: co.Coroutine
@@ -44,55 +46,36 @@ start :: proc{
 }
 
 start_0 :: proc($f: proc(Caller)) -> ^Coroutine {
-    Args :: struct{}
-    wrapper :: proc(caller: Caller, _: rawptr) {
-        f(caller)
+    passer :: proc(c: Caller, _: rawptr) {
+        f(c)
     }
-    return start_raw(wrapper, &Args{})
+    return start_raw(passer, nil)
 }
 start_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
-    Args :: struct {
-        arg1: T1,
-    }    
-    wrapper :: proc(caller: Caller, arg: rawptr) {
-        using args := (^Args)(arg)
-        f(caller, arg1)
+    passer :: proc(c: Caller, arg: ^T1) {
+        f(c, arg^)
     }
-    return start_raw(wrapper, &Args{arg1})
+    arg1 := arg1
+    return start_raw(auto_cast passer, &arg1)
 }
 start_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
-    Args :: struct {
-        arg1: T1,
-        arg2: T2,
+    passer :: proc(c: Caller, args: ^$A) {
+        f(c, expand_values(args^))
     }
-    wrapper :: proc(caller: Caller, arg: rawptr) {
-        using args := (^Args)(arg)
-        f(caller, arg1, arg2)
-    }
-    return start_raw(wrapper, &Args{arg1, arg2})
+    args := compress_values(arg1, arg2)
+    return start_raw(auto_cast intrinsics.procedure_of(passer(nil, &args)), &args)
 }
 start_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
-    Args :: struct {
-        arg1: T1,
-        arg2: T2,
-        arg3: T3,
+    passer :: proc(c: Caller, args: ^$A) {
+        f(c, expand_values(args^))
     }
-    wrapper :: proc(caller: Caller, arg: rawptr) {
-        using args := (^Args)(arg)
-        f(caller, arg1, arg2, arg3)
-    }
-    return start_raw(wrapper, &Args{arg1, arg2, arg3})
+    args := compress_values(arg1, arg2, arg3)
+    return start_raw(auto_cast intrinsics.procedure_of(passer(nil, &args)), &args)
 }
 start_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
-    Args :: struct {
-        arg1: T1,
-        arg2: T2,
-        arg3: T3,
-        arg4: T4,
+    passer :: proc(c: Caller, args: ^$A) {
+        f(c, expand_values(args^))
     }
-    wrapper :: proc(caller: Caller, arg: rawptr) {
-        using args := (^Args)(arg)
-        f(caller, arg1, arg2, arg3, arg4)
-    }
-    return start_raw(wrapper, &Args{arg1, arg2, arg3, arg4})
+    args := compress_values(arg1, arg2, arg3, arg4)
+    return start_raw(auto_cast intrinsics.procedure_of(passer(nil, &args)), &args)
 }
