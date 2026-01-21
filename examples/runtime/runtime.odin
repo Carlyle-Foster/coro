@@ -59,23 +59,20 @@ start_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
     return start_raw(auto_cast passer, &arg1)
 }
 start_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
-    passer :: proc(c: Caller, args: ^$A) {
-        f(c, expand_values(args^))
-    }
     args := compress_values(arg1, arg2)
-    return start_raw(auto_cast intrinsics.procedure_of(passer(nil, &args)), &args)
+    return start_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), &args)
 }
 start_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
-    passer :: proc(c: Caller, args: ^$A) {
-        f(c, expand_values(args^))
-    }
     args := compress_values(arg1, arg2, arg3)
-    return start_raw(auto_cast intrinsics.procedure_of(passer(nil, &args)), &args)
+    return start_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), &args)
+
 }
 start_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
-    passer :: proc(c: Caller, args: ^$A) {
-        f(c, expand_values(args^))
-    }
     args := compress_values(arg1, arg2, arg3, arg4)
-    return start_raw(auto_cast intrinsics.procedure_of(passer(nil, &args)), &args)
+    return start_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), &args)
+}
+
+@(private)
+passer :: proc($F: typeid, $f: F, c: Caller, args: ^$A) {
+    f(c, expand_values(args^))
 }
