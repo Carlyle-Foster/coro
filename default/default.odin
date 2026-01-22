@@ -75,6 +75,17 @@ yield :: proc{
     yield_gen_2,
 }
 
+chain :: proc(c: Caller, coroutines: ..^Coroutine) {
+    for &coroutine in coroutines {
+        if coroutine == nil {
+            continue
+        }
+        for co.resume(&coroutine) {
+            co.yield(c)
+        }
+    }
+}
+
 parallel :: proc(c: Caller, coroutines: ..^Coroutine) {
     coroutines := coroutines
 
