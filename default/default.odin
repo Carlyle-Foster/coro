@@ -2,6 +2,7 @@ package co_def
 THREAD_SAFE :: #config(THREAD_SAFE, true)
 
 import "base:runtime"
+import "base:intrinsics"
 
 import "core:sync"
 _ :: sync
@@ -11,6 +12,9 @@ import co "../../coroutines"
 Coroutine   :: co.Coroutine
 Caller      :: co.Caller
 Stack       :: co.Stack
+
+Routine     :: ^Coroutine // if u want to be cute about it
+routine     :: start
 
 STACK_CAPACITY  :: 64 * 1024
 

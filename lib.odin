@@ -44,7 +44,7 @@ start :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: pro
     assert(len(stack) % 16 == 0)
 
     // this is one byte AFTER the top of the stack
-    rsp := raw_data(stack[len(stack) - (size_of(Coroutine)):])
+    rsp := raw_data(stack[len(stack) - size_of(Coroutine):])
 
     // this doesn't overlap the stack since it goes upward
     coroutine := cast(^Coroutine)rsp
