@@ -76,12 +76,16 @@ resume :: proc{
     co.resume,
     resume_gen_1,
     resume_gen_2,
+    resume_gen_3,
+    resume_gen_4,
 }
 
 yield :: proc{
     co.yield,
     yield_gen_1,
     yield_gen_2,
+    yield_gen_3,
+    yield_gen_4,
 }
 
 unsafe_resume :: co.unsafe_resume
