@@ -43,8 +43,9 @@ free_stack :: proc(stack: Stack) {
 start :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: proc(^Coroutine, rawptr), on_finish_arg: rawptr) -> ^Coroutine {
     assert(len(stack) % 16 == 0)
 
+    reserved := runtime.align_forward(size_of(Coroutine), int(16))
     // this is one byte AFTER the top of the stack
-    rsp := raw_data(stack[len(stack) - size_of(Coroutine):])
+    rsp := raw_data(stack[len(stack) - reserved:])
 
     // this doesn't overlap the stack since it goes upward
     coroutine := cast(^Coroutine)rsp

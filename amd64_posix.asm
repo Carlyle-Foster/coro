@@ -53,7 +53,9 @@ start_coroutine:
     mov rax, rdx ; save f
     mov rdx, r9  ; shift odin context pointer
 
-    call rax ; run the coroutine f
+    sub rsp, 8 ; align the stack
+    call rax   ; run the coroutine f
+    add rsp, 8
 
     ; the coroutine is finished by this point
 

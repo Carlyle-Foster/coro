@@ -77,9 +77,9 @@ start_coroutine:
     mov rax, r8      ; save f
     mov r8, rsp[5*8] ; shift odin context pointer
 
-    sub rsp, 32 ; allocate shadow space
-    call rax    ; run the coroutine f
-    add rsp, 32
+    sub rsp, 8+32 ; align the stack and allocate shadow space
+    call rax      ; run the coroutine f
+    add rsp, 8+32
 
     ; the coroutine is finished by this point
 
