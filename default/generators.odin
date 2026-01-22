@@ -15,7 +15,7 @@ create_gen :: proc {
     create_gen_4,
 }
 
-Gen1 :: struct(R1: typeid) {
+Gen :: struct(R1: typeid) {
     using c: ^Coroutine,
 }
 Gen2 :: struct(R1, R2: typeid) {
@@ -59,13 +59,13 @@ create_gen_4 :: proc($f: proc($G, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3:
     return { create(wrapper, arg1, arg2, arg3, arg4) }
 }
 
-yield_gen_1 :: proc(g: Gen1($R1), val1: R1) {
+yield :: proc(g: Gen($R1), val1: R1) {
     storage := cast(^R1) raw_data(g.stack[STACK_CAPACITY:])[GENERATOR_STORAGE_OFFFSET:]
     storage^ = val1
 
-    co.yield(Caller(g.c))
+    co.pass(Caller(g.c))
 }
-yield_gen_2 :: proc(g: Gen2($R1, $R2), val1: R1, val2: R2) {
+yield_2 :: proc(g: Gen2($R1, $R2), val1: R1, val2: R2) {
     Vals :: struct {
         val1: R1,
         val2: R2,
@@ -73,9 +73,9 @@ yield_gen_2 :: proc(g: Gen2($R1, $R2), val1: R1, val2: R2) {
     storage := cast(^Vals) raw_data(g.stack[STACK_CAPACITY:])[GENERATOR_STORAGE_OFFFSET:]
     storage^ = { val1, val2 }
 
-    co.yield(Caller(g.c))
+    co.pass(Caller(g.c))
 }
-yield_gen_3 :: proc(g: Gen3($R1, $R2, $R3), val1: R1, val2: R2, val3: R3) {
+yield_3 :: proc(g: Gen3($R1, $R2, $R3), val1: R1, val2: R2, val3: R3) {
     Vals :: struct {
         val1: R1,
         val2: R2,
@@ -84,9 +84,9 @@ yield_gen_3 :: proc(g: Gen3($R1, $R2, $R3), val1: R1, val2: R2, val3: R3) {
     storage := cast(^Vals) raw_data(g.stack[STACK_CAPACITY:])[GENERATOR_STORAGE_OFFFSET:]
     storage^ = { val1, val2, val3 }
 
-    co.yield(Caller(g.c))
+    co.pass(Caller(g.c))
 }
-yield_gen_4 :: proc(g: Gen4($R1, $R2, $R3, $R4), val1: R1, val2: R2, val3: R3, val4: R4) {
+yield_4 :: proc(g: Gen4($R1, $R2, $R3, $R4), val1: R1, val2: R2, val3: R3, val4: R4) {
     Vals :: struct {
         val1: R1,
         val2: R2,
@@ -96,10 +96,10 @@ yield_gen_4 :: proc(g: Gen4($R1, $R2, $R3, $R4), val1: R1, val2: R2, val3: R3, v
     storage := cast(^Vals) raw_data(g.stack[STACK_CAPACITY:])[GENERATOR_STORAGE_OFFFSET:]
     storage^ = { val1, val2, val3, val4 }
 
-    co.yield(Caller(g.c))
+    co.pass(Caller(g.c))
 }
 
-resume_gen_1 :: proc(g: ^Gen1($R1)) -> (R1, bool) {
+next :: proc(g: ^Gen($R1)) -> (R1, bool) {
     #assert(size_of(R1) <= GENERATOR_STORAGE_SIZE)
     if co.resume(g) {
         storage := cast(^R1) raw_data(g.stack[STACK_CAPACITY:])[GENERATOR_STORAGE_OFFFSET:]
@@ -108,7 +108,7 @@ resume_gen_1 :: proc(g: ^Gen1($R1)) -> (R1, bool) {
     }
     return {}, false
 }
-resume_gen_2 :: proc(g: ^Gen2($R1, $R2)) -> (R1, R2, bool) {
+next_2 :: proc(g: ^Gen2($R1, $R2)) -> (R1, R2, bool) {
     Vals :: struct {
         val1: R1,
         val2: R2,
@@ -121,7 +121,7 @@ resume_gen_2 :: proc(g: ^Gen2($R1, $R2)) -> (R1, R2, bool) {
     }
     return {}, {}, false
 }
-resume_gen_3 :: proc(g: ^Gen3($R1, $R2, $R3)) -> (R1, R2, R3, bool) {
+next_3 :: proc(g: ^Gen3($R1, $R2, $R3)) -> (R1, R2, R3, bool) {
     Vals :: struct {
         val1: R1,
         val2: R2,
@@ -135,7 +135,7 @@ resume_gen_3 :: proc(g: ^Gen3($R1, $R2, $R3)) -> (R1, R2, R3, bool) {
     }
     return {}, {}, {}, false
 }
-resume_gen_4 :: proc(g: ^Gen4($R1, $R2, $R3, $R4)) -> (R1, R2, R3, R4, bool) {
+next_4 :: proc(g: ^Gen4($R1, $R2, $R3, $R4)) -> (R1, R2, R3, R4, bool) {
     Vals :: struct {
         val1: R1,
         val2: R2,

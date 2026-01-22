@@ -4,7 +4,7 @@ import "core:fmt"
 
 import co "../../../coroutines/default"
 
-enerates :: co.Gen1
+enerates :: co.Gen
 
 repeater :: proc(g:enerates(int), n, times: int) {
     for _ in 1..=times {
@@ -16,7 +16,7 @@ repeater :: proc(g:enerates(int), n, times: int) {
 main :: proc() {
     gen := co.gen(repeater, 1, 2)
 
-    for n in co.resume(&gen) {
+    for n in co.next(&gen) {
         fmt.println("got", n)
     }
 }

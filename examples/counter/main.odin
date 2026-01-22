@@ -10,7 +10,7 @@ counter :: proc(cc: co.Caller, n: int) {
     for i in 1..=n {
         fmt.printfln("%d / %d", i, n)
         total += 1
-        co.yield(cc)
+        co.pass(cc)
     }
 }
 

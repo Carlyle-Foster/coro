@@ -23,4 +23,4 @@ create_raw :: proc(f: proc(Caller, rawptr), arg: rawptr) -> ^Coroutine {
 
 resume  :: co.resume
 
-yield   :: co.yield
+pass    :: co.pass

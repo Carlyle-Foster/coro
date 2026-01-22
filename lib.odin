@@ -68,7 +68,7 @@ resume :: proc(coroutine: ^^Coroutine) -> (unfinished: bool) {
     return
 }
 
-yield :: proc(caller: Caller) {
+pass :: proc(caller: Caller) {
     swap_stacks((^Coroutine)(caller))
 }
 

@@ -72,21 +72,9 @@ create_raw :: proc(f: proc(Caller, rawptr), args: $Args) -> ^Coroutine {
     }
 }
 
-resume :: proc{
-    co.resume,
-    resume_gen_1,
-    resume_gen_2,
-    resume_gen_3,
-    resume_gen_4,
-}
+resume :: co.resume
 
-yield :: proc{
-    co.yield,
-    yield_gen_1,
-    yield_gen_2,
-    yield_gen_3,
-    yield_gen_4,
-}
+pass :: co.pass
 
 unsafe_resume :: co.unsafe_resume
 
@@ -96,7 +84,7 @@ chain :: proc(c: Caller, coroutines: ..^Coroutine) {
             continue
         }
         for co.resume(&coroutine) {
-            co.yield(c)
+            co.pass(c)
         }
     }
 }
@@ -105,7 +93,7 @@ parallel :: proc(c: Caller, coroutines: ..^Coroutine) {
     coroutines := coroutines
 
     for parallel_iter(&coroutines) {
-        yield(c)
+        pass(c)
     }
 }
 
