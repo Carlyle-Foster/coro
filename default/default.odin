@@ -14,9 +14,12 @@ Caller      :: co.Caller
 Stack       :: co.Stack
 
 Routine     :: ^Coroutine // if u want to be cute about it
-routine     :: start
+routine     :: create
 
-STACK_CAPACITY  :: 64 * 1024
+COROUTINE_LOCAL_STORAGE :: 128
+#assert(COROUTINE_LOCAL_STORAGE % 16 == 0)
+
+STACK_CAPACITY  :: 64 * 1024 - COROUTINE_LOCAL_STORAGE
 
 free_stacks: [dynamic]Stack
 when THREAD_SAFE {
@@ -41,12 +44,12 @@ start_raw :: proc(f: proc(Caller, rawptr), arg: rawptr) -> ^Coroutine {
     }
     if stack == nil {
         err: runtime.Allocator_Error
-        stack, err = co.allocate_stack(STACK_CAPACITY)
+        stack, err = co.allocate_stack(STACK_CAPACITY + COROUTINE_LOCAL_STORAGE)
 
         ensure(err == .None)
     }
 
-    return co.start(stack, f, arg, on_finish, nil)
+    return co.start(stack[:STACK_CAPACITY], f, arg, on_finish, nil)
 
     on_finish :: proc(coroutine: ^Coroutine, _arg: rawptr) {
         err: runtime.Allocator_Error
@@ -60,9 +63,17 @@ start_raw :: proc(f: proc(Caller, rawptr), arg: rawptr) -> ^Coroutine {
     }
 }
 
-resume  :: co.resume
+resume :: proc{
+    co.resume,
+    resume_gen_1,
+    resume_gen_2,
+}
 
-yield   :: co.yield
+yield :: proc{
+    co.yield,
+    yield_gen_1,
+    yield_gen_2,
+}
 
 parallel :: proc(c: Caller, coroutines: ..^Coroutine) {
     coroutines := coroutines
