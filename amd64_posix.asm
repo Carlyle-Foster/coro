@@ -9,13 +9,27 @@ section .note.GNU-stack
 
 section .text
 
-global start_coroutine
+global create_coroutine
 global swap_stacks
 
-%define unfinished 1
 %define finished   0
+%define unfinished 1
 
-%macro prelude 0
+%macro return 1
+    mov rax, %1
+    ret
+%endmacro
+
+%macro switch 0
+    mov rax, [rdi]
+    mov [rdi], rsp
+
+    mov rsp, rax
+%endmacro
+
+%macro save_registers 0
+    push rdi
+    push rsi
     push rdx
     push rbp
     push rbx
@@ -23,14 +37,9 @@ global swap_stacks
     push r13
     push r14
     push r15
-
-    mov rax, [rdi]
-    mov [rdi], rsp
-
-    mov rsp, rax ; switch stacks
 %endmacro
 
-%macro postlude 1
+%macro restore_registers 0
     pop r15
     pop r14
     pop r13
@@ -38,28 +47,32 @@ global swap_stacks
     pop rbx
     pop rbp
     pop rdx
-
-    mov rax, %1
-    ret
+    pop rsi
+    pop rdi
 %endmacro
 
-start_coroutine:
-    prelude
+create_coroutine:
+    switch
 
     push rcx ; save on_finish
     push r8  ; save on_finish_arg
     push r9, ; save odin context pointer
+    push 0   ; for alignment
 
-    mov rax, rdx ; save f
-    mov rdx, r9  ; shift odin context pointer
+    push cleanup_coroutine
 
-    sub rsp, 8 ; align the stack
-    call rax   ; run the coroutine f
-    add rsp, 8
+    push rdx ; setup f
 
-    ; the coroutine is finished by this point
+    mov  rdx, r9 ; pose for the picture
+    save_registers
 
+    switch
+    
+    ret
+
+cleanup_coroutine:
     ; setup args for on_finish
+    pop r8  ; for alignment
     pop rdx ; restore odin context pointer
     pop rsi ; restore on_finish_arg
     pop rax ; setup call to on_finish
@@ -71,9 +84,15 @@ start_coroutine:
 
     call rax ; on_finish
     
-    postlude finished
+    restore_registers
+
+    return finished
 
 swap_stacks:
-    prelude
+    save_registers
 
-    postlude unfinished
+    switch
+
+    restore_registers
+
+    return unfinished

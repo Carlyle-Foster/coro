@@ -5,7 +5,10 @@ import "base:runtime"
 import "base:intrinsics"
 
 import "core:sync"
+
 _ :: sync
+_ :: runtime
+_ :: intrinsics
 
 import co "../../coroutines"
 
@@ -16,8 +19,9 @@ Stack       :: co.Stack
 Routine     :: ^Coroutine // if u want to be cute about it
 routine     :: create
 
-COROUTINE_LOCAL_STORAGE :: 128
+COROUTINE_LOCAL_STORAGE :: 4*1024
 #assert(COROUTINE_LOCAL_STORAGE % 16 == 0)
+GENERATOR_STORAGE_OFFFSET :: 3*1024
 
 STACK_CAPACITY  :: 64 * 1024 - COROUTINE_LOCAL_STORAGE
 
@@ -34,7 +38,10 @@ when THREAD_SAFE {
     maybe_guard_mutex :: proc() { /* empty*/ }
 }
 
-start_raw :: proc(f: proc(Caller, rawptr), arg: rawptr) -> ^Coroutine {
+create_raw :: proc(f: proc(Caller, rawptr), args: $Args) -> ^Coroutine {
+    ARG_STORAGE :: GENERATOR_STORAGE_OFFFSET
+    #assert(size_of(Args) <= ARG_STORAGE)
+
     stack: Stack
     {
         maybe_guard_mutex()
@@ -48,8 +55,10 @@ start_raw :: proc(f: proc(Caller, rawptr), arg: rawptr) -> ^Coroutine {
 
         ensure(err == .None)
     }
+    storage := cast(^Args)raw_data(stack[STACK_CAPACITY:])
+    storage^ = args
 
-    return co.start(stack[:STACK_CAPACITY], f, arg, on_finish, nil)
+    return co.create(stack[:STACK_CAPACITY], f, storage, on_finish, nil)
 
     on_finish :: proc(coroutine: ^Coroutine, _arg: rawptr) {
         err: runtime.Allocator_Error
@@ -74,6 +83,8 @@ yield :: proc{
     yield_gen_1,
     yield_gen_2,
 }
+
+unsafe_resume :: co.unsafe_resume
 
 chain :: proc(c: Caller, coroutines: ..^Coroutine) {
     for &coroutine in coroutines {
@@ -105,14 +116,6 @@ parallel_iter :: proc(coroutines: ^[]^ Coroutine) -> (ok: bool) {
     return
 }
 
-start :: proc{
-    start_0,
-    start_1,
-    start_2,
-    start_3,
-    start_4,
-}
-
 create :: proc{
     create_0,
     create_1,
@@ -121,69 +124,33 @@ create :: proc{
     create_4,
 }
 
-start_0 :: proc($f: proc(Caller)) -> ^Coroutine {
+create_0 :: proc($f: proc(Caller)) -> ^Coroutine {
     passer :: proc(c: Caller, _: rawptr) {
         f(c)
     }
-    return start_raw(passer, nil)
+    return create_raw(passer, int(0))
 }
-start_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
+create_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
     passer :: proc(c: Caller, arg: ^T1) {
         f(c, arg^)
     }
     arg1 := arg1
-    return start_raw(auto_cast passer, &arg1)
+    return create_raw(auto_cast passer, arg1)
 }
-start_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
+create_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
     args := compress_values(arg1, arg2)
-    return start_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), &args)
+    return create_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), args)
 }
-start_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
+create_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
     args := compress_values(arg1, arg2, arg3)
-    return start_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), &args)
+    return create_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), args)
 }
-start_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
+create_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
     args := compress_values(arg1, arg2, arg3, arg4)
-    return start_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), &args)
+    return create_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), args)
 }
 
 @(private)
 passer :: proc($F: typeid, $f: F, c: Caller, args: ^$A) {
     f(c, expand_values(args^))
-}
-
-create_0 :: proc($f: proc(Caller)) -> ^Coroutine {
-    waiter :: proc(c: Caller) {
-        yield(c)
-        f(c)
-    }
-    return start(waiter)
-}
-create_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
-    waiter :: proc(c: Caller, arg1: T1) {
-        yield(c)
-        f(c, arg1)
-    }
-    return start(waiter, arg1)
-}
-create_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
-    waiter :: proc(c: Caller, arg1: T1, arg2: T2) {
-        yield(c)
-        f(c, arg1, arg2)
-    }
-    return start(waiter, arg1, arg2)
-}
-create_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
-    waiter :: proc(c: Caller, arg1: T1, arg2: T2, arg3: T3) {
-        yield(c)
-        f(c, arg1, arg2, arg3)
-    }
-    return start(waiter, arg1, arg2, arg3)
-}
-create_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
-    waiter :: proc(c: Caller, arg1: T1, arg2: T2, arg3: T3, arg4: T4) {
-        yield(c)
-        f(c, arg1, arg2, arg3, arg4)
-    }
-    return start(waiter, arg1, arg2, arg3, arg4)
 }

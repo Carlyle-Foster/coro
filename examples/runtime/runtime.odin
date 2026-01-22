@@ -11,10 +11,10 @@ Caller      :: co.Caller
 
 STACK_CAPACITY  :: 64 * 1024
 
-start_raw :: proc(f: proc(Caller, rawptr), arg: rawptr) -> ^Coroutine {
+create_raw :: proc(f: proc(Caller, rawptr), arg: rawptr) -> ^Coroutine {
     stack := co.allocate_stack(STACK_CAPACITY)
     
-    return co.start(stack, f, arg, on_finish, nil)
+    return co.create(stack, f, arg, on_finish, nil)
 
     on_finish :: proc(coroutine: ^Coroutine, _arg: rawptr) {
         co.free_stack(coroutine.stack)

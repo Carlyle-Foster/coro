@@ -26,7 +26,7 @@ allocate_stack :: proc(min_size: int) -> (Stack, runtime.Allocator_Error) #optio
     // remove read/write permissions from the guard page
     ensure(virtual.protect(raw_data(stack), uint(page_size), {}))
     // skip past the guard page
-    stack = stack[page_size:] 
+    stack = stack[page_size:]
     
     return Stack(stack), nil
 }
@@ -40,7 +40,7 @@ free_stack :: proc(stack: Stack) {
     virtual.release(base, uint(page_size))
 }
 
-start :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: proc(^Coroutine, rawptr), on_finish_arg: rawptr) -> ^Coroutine {
+create :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: proc(^Coroutine, rawptr), on_finish_arg: rawptr) -> ^Coroutine {
     assert(len(stack) % 16 == 0)
 
     reserved := runtime.align_forward(size_of(Coroutine), int(16))
@@ -53,12 +53,9 @@ start :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: pro
         rsp,
         stack,
     }
+    create_coroutine(coroutine, arg, f, on_finish, on_finish_arg)
 
-    if start_coroutine(coroutine, arg, f, on_finish, on_finish_arg) {
-        return coroutine
-    } else {
-        return nil
-    }
+    return coroutine
 }
 
 resume :: proc(coroutine: ^^Coroutine) -> (unfinished: bool) {
@@ -88,6 +85,6 @@ when ODIN_OS != .Windows && ODIN_ARCH == .amd64 {
 }
 @(private)
 foreign assembly {
-    start_coroutine :: proc "odin" (^Coroutine, rawptr, proc"odin"(Caller, rawptr), proc"odin"(^Coroutine, rawptr), rawptr) -> bool ---
-    swap_stacks     :: proc(^Coroutine) -> bool ---
+    create_coroutine :: proc "odin" (^Coroutine, rawptr, proc"odin"(Caller, rawptr), proc"odin"(^Coroutine, rawptr), rawptr) ---
+    swap_stacks      :: proc(^Coroutine) -> bool ---
 }

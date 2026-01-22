@@ -17,6 +17,7 @@ overflow_stack :: proc(cc: co.Caller, i: int) {
 }
 
 main :: proc() {
-    co.start(overflow_stack, 0)
+    overflows := co.create(overflow_stack, 0)
+    co.resume(&overflows)
     unreachable() // the stack will have overflown by this point
 }

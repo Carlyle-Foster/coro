@@ -11,9 +11,11 @@ accept :: proc(socket: nbio.TCP_Socket, $cb: proc(Caller, nbio.TCP_Socket, nbio.
         using op.accept
         
         if err == .None {
-            start(cb, client, client_endpoint)
+            c := create(cb, client, client_endpoint)
+            unsafe_resume(c)
         } else {
-            start(on_err, err)
+            c := create(on_err, err)
+            unsafe_resume(c)
         }
         nbio.accept(socket, on_accept)
     }
