@@ -2,7 +2,7 @@ package counter
 
 import "core:fmt"
 
-import co "../../../coroutines/default"
+import co "../../../coroutines"
 
 total := 0
 

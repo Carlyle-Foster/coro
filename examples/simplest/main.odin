@@ -2,7 +2,7 @@ package simple
 
 import "core:fmt"
 
-import co "../../../coroutines/default"
+import co "../../../coroutines"
 
 main :: proc() {
     c := co.create(proc(cc: co.Caller) {fmt.printfln("i hope this coroutine finds you well..")})

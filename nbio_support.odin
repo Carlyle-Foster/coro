@@ -2,8 +2,6 @@ package co_def
 
 import "core:nbio"
 
-import co "../../coroutines"
-
 accept :: proc(socket: nbio.TCP_Socket, $cb: proc(Caller, nbio.TCP_Socket, nbio.Endpoint), $on_err: proc(Caller, nbio.Error)) {
     nbio.accept(socket, on_accept)
 
@@ -23,29 +21,29 @@ accept :: proc(socket: nbio.TCP_Socket, $cb: proc(Caller, nbio.TCP_Socket, nbio.
 
 write :: proc(c: Caller, handle: nbio.Handle, offset: int, buf: []byte) -> (writ: int, err: nbio.FS_Error) {
     op := nbio.write_poly(handle, offset, buf, c, resumer)
-    co.pass(c)
+    pass(c)
     return op.write.written, op.write.err
 }
 
 read :: proc(c: Caller, handle: nbio.Handle, offset: int, buf: []byte) -> (read: int, err: nbio.FS_Error) {
     op := nbio.read_poly(handle, offset, buf, c, resumer)
-    co.pass(c)
+    pass(c)
     return op.read.read, op.read.err
 }
 
 send :: proc(c: Caller, socket: nbio.Any_Socket, bufs: [][]byte) -> (sent: int, err: nbio.Send_Error) {
     op := nbio.send_poly(socket, bufs, c, resumer)
-    co.pass(c)
+    pass(c)
     return op.send.sent, op.send.err
 }
 
 recv :: proc(c: Caller, socket: nbio.Any_Socket, bufs: [][]byte) -> (received: int, err: nbio.Recv_Error) {
     op := nbio.recv_poly(socket, bufs, c, resumer)
-    co.pass(c)
+    pass(c)
     return op.recv.received, op.recv.err
 }
 
 @(private="file")
 resumer :: proc(op: ^nbio.Operation, c: Caller) {
-    co.unsafe_resume(cast(^Coroutine)c)
+    unsafe_resume(cast(^Coroutine)c)
 }

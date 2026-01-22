@@ -5,7 +5,7 @@ import "core:fmt"
 import "core:strings"
 import "core:nbio"
 
-import co "../../../coroutines/default"
+import co "../../../coroutines"
 
 main :: proc() {
     nbio.acquire_thread_event_loop()

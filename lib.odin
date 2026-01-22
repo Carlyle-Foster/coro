@@ -1,90 +1,148 @@
-package coroutines
+package co_def
+THREAD_SAFE :: #config(THREAD_SAFE, true)
 
 import "base:runtime"
+import "base:intrinsics"
 
-import "core:mem/virtual"
-import old_os "core:os"
+import "core:sync"
 
-Coroutine :: struct {
-    rsp: rawptr,
-    stack: Stack,
-}
-#assert(offset_of(Coroutine, rsp) == 0)
+_ :: sync
+_ :: runtime
+_ :: intrinsics
 
-Caller :: distinct ^Coroutine
+import prim "primitives"
 
-Stack :: distinct []byte
+Coroutine   :: prim.Coroutine
+Caller      :: prim.Caller
+Stack       :: prim.Stack
 
-allocate_stack :: proc(min_size: int) -> (Stack, runtime.Allocator_Error) #optional_allocator_error {
-    page_size := old_os.get_page_size()
-    size      := runtime.align_forward(min_size, page_size) + page_size
+Routine     :: ^Coroutine // if u want to be cute about it
+routine     :: create
 
-    stack, err := virtual.reserve_and_commit(uint(size))
-    if err != nil {
-        return nil, err
+COROUTINE_LOCAL_STORAGE :: 4*1024
+#assert(COROUTINE_LOCAL_STORAGE % 16 == 0)
+GENERATOR_STORAGE_OFFFSET :: 3*1024
+
+STACK_CAPACITY  :: 64 * 1024 - COROUTINE_LOCAL_STORAGE
+
+free_stacks: [dynamic]Stack
+when THREAD_SAFE {
+    free_stacks_mutex: sync.Mutex
+
+    @(deferred_out=sync.mutex_unlock)
+    maybe_guard_mutex :: proc() -> ^sync.Mutex {
+        sync.mutex_lock(&free_stacks_mutex)
+        return &free_stacks_mutex
     }
-    // remove read/write permissions from the guard page
-    ensure(virtual.protect(raw_data(stack), uint(page_size), {}))
-    // skip past the guard page
-    stack = stack[page_size:]
-    
-    return Stack(stack), nil
+} else {
+    maybe_guard_mutex :: proc() { /* empty*/ }
 }
 
-free_stack :: proc(stack: Stack) {
-    page_size := old_os.get_page_size()
+create_raw :: proc(f: proc(Caller, rawptr), args: $Args) -> ^Coroutine {
+    ARG_STORAGE :: GENERATOR_STORAGE_OFFFSET
+    #assert(size_of(Args) <= ARG_STORAGE)
 
-    base := rawptr( uintptr(raw_data(stack)) - uintptr(page_size) )
-
-    virtual.decommit(base, uint(page_size))
-    virtual.release(base, uint(page_size))
-}
-
-create :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: proc(^Coroutine, rawptr), on_finish_arg: rawptr) -> ^Coroutine {
-    assert(len(stack) % 16 == 0)
-
-    reserved := runtime.align_forward(size_of(Coroutine), int(16))
-    // this is one byte AFTER the top of the stack
-    rsp := raw_data(stack[len(stack) - reserved:])
-
-    // this doesn't overlap the stack since it goes upward
-    coroutine := cast(^Coroutine)rsp
-    coroutine^ = {
-        rsp,
-        stack,
+    stack: Stack
+    {
+        maybe_guard_mutex()
+        if len(free_stacks) > 0 {
+            stack = pop(&free_stacks)
+        }
     }
-    create_coroutine(coroutine, arg, f, on_finish, on_finish_arg)
+    if stack == nil {
+        err: runtime.Allocator_Error
+        stack, err = prim.allocate_stack(STACK_CAPACITY + COROUTINE_LOCAL_STORAGE)
 
-    return coroutine
+        ensure(err == .None)
+    }
+    storage := cast(^Args)raw_data(stack[STACK_CAPACITY:])
+    storage^ = args
+
+    return prim.create(stack[:STACK_CAPACITY], f, storage, on_finish, nil)
+
+    on_finish :: proc(coroutine: ^Coroutine, _arg: rawptr) {
+        err: runtime.Allocator_Error
+        { 
+            maybe_guard_mutex()
+            _, err = append(&free_stacks, coroutine.stack)
+        }
+        if err != .None {
+            prim.free_stack(coroutine.stack)
+        }
+    }
 }
 
-resume :: proc(coroutine: ^^Coroutine) -> (unfinished: bool) {
-    if coroutine^ != nil {
-        unfinished = swap_stacks(coroutine^)
-        if !unfinished {
-            coroutine^ = nil
+resume :: prim.resume
+
+pass :: prim.pass
+
+unsafe_resume :: prim.unsafe_resume
+
+chain :: proc(c: Caller, coroutines: ..^Coroutine) {
+    for &coroutine in coroutines {
+        if coroutine == nil {
+            continue
+        }
+        for prim.resume(&coroutine) {
+            prim.pass(c)
+        }
+    }
+}
+
+parallel :: proc(c: Caller, coroutines: ..^Coroutine) {
+    coroutines := coroutines
+
+    for parallel_iter(&coroutines) {
+        pass(c)
+    }
+}
+
+parallel_iter :: proc(coroutines: ^[]^ Coroutine) -> (ok: bool) {
+    for &coroutine in coroutines {
+        if coroutine != nil && prim.unsafe_resume(coroutine) {
+            ok = true
+        } else {
+            coroutine = nil
         }
     }
     return
 }
 
-pass :: proc(caller: Caller) {
-    swap_stacks((^Coroutine)(caller))
+create :: proc{
+    create_0,
+    create_1,
+    create_2,
+    create_3,
+    create_4,
 }
 
-unsafe_resume :: proc(coroutine: ^Coroutine) -> (unfinished: bool) {
-    return swap_stacks(coroutine)
+create_0 :: proc($f: proc(Caller)) -> ^Coroutine {
+    passer :: proc(c: Caller, _: rawptr) {
+        f(c)
+    }
+    return create_raw(passer, int(0))
+}
+create_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
+    passer :: proc(c: Caller, arg: ^T1) {
+        f(c, arg^)
+    }
+    arg1 := arg1
+    return create_raw(auto_cast passer, arg1)
+}
+create_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
+    args := compress_values(arg1, arg2)
+    return create_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), args)
+}
+create_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
+    args := compress_values(arg1, arg2, arg3)
+    return create_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), args)
+}
+create_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
+    args := compress_values(arg1, arg2, arg3, arg4)
+    return create_raw(auto_cast intrinsics.procedure_of(passer(type_of(f), f, nil, &args)), args)
 }
 
-when ODIN_OS != .Windows && ODIN_ARCH == .amd64 {
-    foreign import assembly "amd64_posix.asm"
-} else when ODIN_OS == .Windows && ODIN_ARCH == .amd64 {
-    foreign import assembly "amd64_windows.asm"
-} else {
-    #assert(false, "unsupported architecture")
-}
 @(private)
-foreign assembly {
-    create_coroutine :: proc "odin" (^Coroutine, rawptr, proc"odin"(Caller, rawptr), proc"odin"(^Coroutine, rawptr), rawptr) ---
-    swap_stacks      :: proc(^Coroutine) -> bool ---
+passer :: proc($F: typeid, $f: F, c: Caller, args: ^$A) {
+    f(c, expand_values(args^))
 }

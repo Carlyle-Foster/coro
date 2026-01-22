@@ -4,7 +4,7 @@ package ex_rt
 
 import "base:intrinsics"
 
-import co "../../../coroutines"
+import co "../../../coroutines/primitives"
 
 Coroutine   :: co.Coroutine
 Caller      :: co.Caller
