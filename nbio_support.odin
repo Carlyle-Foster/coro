@@ -1,3 +1,4 @@
+#+feature using-stmt
 package co_def
 
 import "core:nbio"

@@ -22,8 +22,9 @@ main :: proc() {
 }
 
 handle_client :: proc(cc: co.Caller, client: nbio.TCP_Socket, endpoint: nbio.Endpoint) {
-    buf: [4096]byte
+    fmt.println("client opened connection")
 
+    buf: [4096]byte
     for {
         read, recv_err := co.recv(cc, client, {buf[:]})
         ensure(recv_err == nil)

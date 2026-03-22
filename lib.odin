@@ -113,7 +113,7 @@ create_raw :: proc(f: proc(Caller, rawptr), args: $Args) -> ^Coroutine {
 
     stack: Stack
     {
-        maybe_guard_mutex()
+        when THREAD_SAFE { sync.mutex_guard(&free_stacks_mutex) }
         if len(free_stacks) > 0 {
             stack = pop(&free_stacks)
         }
@@ -132,21 +132,11 @@ create_raw :: proc(f: proc(Caller, rawptr), args: $Args) -> ^Coroutine {
     on_finish :: proc(coroutine: ^Coroutine, _arg: rawptr) {
         err: runtime.Allocator_Error
         { 
-            maybe_guard_mutex()
+            when THREAD_SAFE { sync.mutex_guard(&free_stacks_mutex) }
             _, err = append(&free_stacks, coroutine.stack)
         }
         if err != .None {
             prim.free_stack(coroutine.stack)
         }
     }
-}
-
-when THREAD_SAFE {
-    @(deferred_out=sync.mutex_unlock)
-    maybe_guard_mutex :: proc() -> ^sync.Mutex {
-        sync.mutex_lock(&free_stacks_mutex)
-        return &free_stacks_mutex
-    }
-} else {
-    maybe_guard_mutex :: proc() { /* empty*/ }
 }

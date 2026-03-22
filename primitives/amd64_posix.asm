@@ -56,10 +56,11 @@ create_coroutine:
 
     push rcx ; save on_finish
     push r8  ; save on_finish_arg
-    push r9, ; save odin context pointer
+    push r9  ; save odin context pointer
     push 0   ; for alignment
 
-    push cleanup_coroutine
+    lea  r10, [rel cleanup_coroutine]
+    push r10
 
     push rdx ; setup f
 

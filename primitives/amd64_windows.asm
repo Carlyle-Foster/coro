@@ -9,13 +9,25 @@ section .note.GNU-stack
 
 section .text
 
-global start_coroutine
+global create_coroutine
 global swap_stacks
 
-%define unfinished 1
 %define finished   0
+%define unfinished 1
 
-%macro prelude 0
+%macro return 1
+    mov rax, %1
+    ret
+%endmacro
+
+%macro switch 0
+    mov rax, [rcx]
+    mov [rcx], rsp
+
+    mov rsp, rax
+%endmacro
+
+%macro save_registers 0
     push rdi
     push rsi
     push rdx
@@ -26,34 +38,29 @@ global swap_stacks
     push r14
     push r15
     sub rsp, 10*16
-    movaps rsp[9*16], xmm6
-    movaps rsp[8*16], xmm7
-    movaps rsp[7*16], xmm8
-    movaps rsp[6*16], xmm9
-    movaps rsp[5*16], xmm10
-    movaps rsp[4*16], xmm11
-    movaps rsp[3*16], xmm12
-    movaps rsp[2*16], xmm13
-    movaps rsp[1*16], xmm14
-    movaps rsp[0*16], xmm15
-
-    mov rax, [rcx]
-    mov [rcx], rsp
-
-    mov rsp, rax ; switch stacks
+    movups rsp[9*16], xmm6
+    movups rsp[8*16], xmm7
+    movups rsp[7*16], xmm8
+    movups rsp[6*16], xmm9
+    movups rsp[5*16], xmm10
+    movups rsp[4*16], xmm11
+    movups rsp[3*16], xmm12
+    movups rsp[2*16], xmm13
+    movups rsp[1*16], xmm14
+    movups rsp[0*16], xmm15
 %endmacro
 
-%macro postlude 1
-    movaps xmm15, rsp[0*16]
-    movaps xmm14, rsp[1*16]
-    movaps xmm13, rsp[2*16]
-    movaps xmm12, rsp[3*16]
-    movaps xmm11, rsp[4*16]
-    movaps xmm10, rsp[5*16]
-    movaps xmm9,  rsp[6*16]
-    movaps xmm8,  rsp[7*16]
-    movaps xmm7,  rsp[8*16]
-    movaps xmm6,  rsp[9*16]
+%macro restore_registers 0
+    movups xmm15, rsp[0*16]
+    movups xmm14, rsp[1*16]
+    movups xmm13, rsp[2*16]
+    movups xmm12, rsp[3*16]
+    movups xmm11, rsp[4*16]
+    movups xmm10, rsp[5*16]
+    movups xmm9,  rsp[6*16]
+    movups xmm8,  rsp[7*16]
+    movups xmm7,  rsp[8*16]
+    movups xmm6,  rsp[9*16]
     add rsp, 10*16
     pop r15
     pop r14
@@ -64,40 +71,59 @@ global swap_stacks
     pop rdx
     pop rsi
     pop rdi
-
-    mov rax, %1
-    ret
 %endmacro
 
-start_coroutine:
-    prelude
+create_coroutine:
+    mov r10, rsp[5*8]
+    mov r11, rsp[6*8]
 
-    push r9 ; save on_finish
+    switch
 
-    mov rax, r8      ; save f
-    mov r8, rsp[5*8] ; shift odin context pointer
+    push r9  ; save on_finish
+    push r10 ; save on_finish_arg
+    push r11 ; save odin context pointer
+    push 0   ; for alignment
 
-    sub rsp, 8+32 ; align the stack and allocate shadow space
-    call rax      ; run the coroutine f
-    add rsp, 8+32
+    sub rsp, 32 ; allocate shadow space
 
-    ; the coroutine is finished by this point
+    lea  r10, [rel cleanup_coroutine]
+    push r10
+
+    push r8 ; setup f
+
+    mov  r8, r11 ; pose for the picture
+    save_registers
+
+    switch
+    
+    ret
+
+cleanup_coroutine:
+    add rsp, 32 ; free shadow space
 
     ; setup args for on_finish
-    mov rdx, rsp[4*8] ; restore on_finish_arg
-    mov r8,  rsp[5*8] ; restore odin context pointer
-    pop rax           ; setup call to on_finish
+    pop r10 ; for alignment
+    pop r8  ; restore odin context pointer
+    pop rdx ; restore on_finish_arg
+    pop rax ; setup call to on_finish
 
     ; the Coroutine is now at the top of the stack, thus..
     mov rcx, rsp ; restore ^Coroutine
 
     mov rsp, [rsp] ; switch stacks
 
+    ;mov r8, 0
     call rax ; on_finish
     
-    postlude finished
+    restore_registers
+    
+    return finished
 
 swap_stacks:
-    prelude
+    save_registers
 
-    postlude unfinished
+    switch
+
+    restore_registers
+
+    return unfinished
