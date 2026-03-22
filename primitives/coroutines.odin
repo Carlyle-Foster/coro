@@ -3,7 +3,7 @@ package coroutines
 import "base:runtime"
 
 import "core:mem/virtual"
-import old_os "core:os"
+import old_os "core:os/old"
 
 Coroutine :: struct {
     rsp: rawptr,
