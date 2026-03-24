@@ -48,9 +48,6 @@ unsafe_resume:
 
 chain :: proc(c: Caller, coroutines: ..^Coroutine) {
     for &coroutine in coroutines {
-        if coroutine == nil {
-            continue
-        }
         for prim.resume(&coroutine) {
             prim.pass(c)
         }
@@ -67,10 +64,8 @@ parallel :: proc(c: Caller, coroutines: ..^Coroutine) {
 
 parallel_iter :: proc(coroutines: ^[]^ Coroutine) -> (ok: bool) {
     for &coroutine in coroutines {
-        if coroutine != nil && prim.unsafe_resume(coroutine) {
+        if prim.resume(&coroutine) {
             ok = true
-        } else {
-            coroutine = nil
         }
     }
     return
