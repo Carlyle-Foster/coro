@@ -9,8 +9,8 @@ section .note.GNU-stack
 
 section .text
 
-global create_coroutine
-global swap_stacks
+global asm_init
+global asm_swap_stacks
 
 %define finished   0
 %define unfinished 1
@@ -51,7 +51,7 @@ global swap_stacks
     pop rdi
 %endmacro
 
-create_coroutine:
+asm_init:
     switch
 
     push rcx ; save on_finish
@@ -89,7 +89,7 @@ cleanup_coroutine:
 
     return finished
 
-swap_stacks:
+asm_swap_stacks:
     save_registers
 
     switch

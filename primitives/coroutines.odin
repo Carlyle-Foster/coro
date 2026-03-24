@@ -3,7 +3,7 @@ package coroutines
 import "base:runtime"
 
 import "core:mem/virtual"
-import old_os "core:os/old"
+import "core:os/old"
 
 Coroutine :: struct {
     rsp: rawptr,
@@ -16,7 +16,7 @@ Caller :: distinct ^Coroutine
 Stack :: distinct []byte
 
 allocate_stack :: proc(min_size: int) -> (Stack, runtime.Allocator_Error) #optional_allocator_error {
-    page_size := old_os.get_page_size()
+    page_size := old.get_page_size()
     size      := runtime.align_forward(min_size, page_size) + page_size
 
     stack, err := virtual.reserve_and_commit(uint(size))
@@ -32,7 +32,7 @@ allocate_stack :: proc(min_size: int) -> (Stack, runtime.Allocator_Error) #optio
 }
 
 free_stack :: proc(stack: Stack) {
-    page_size := old_os.get_page_size()
+    page_size := old.get_page_size()
 
     base := rawptr( uintptr(raw_data(stack)) - uintptr(page_size) )
 
@@ -53,28 +53,13 @@ create :: proc(stack: Stack, f: proc(Caller, rawptr), arg: rawptr, on_finish: pr
         rsp,
         stack,
     }
-    create_coroutine(coroutine, arg, f, on_finish, on_finish_arg)
+    asm_init(coroutine, arg, f, on_finish, on_finish_arg)
 
     return coroutine
 }
 
-resume :: proc(coroutine: ^^Coroutine) -> (unfinished: bool) {
-    if coroutine^ != nil {
-        unfinished = swap_stacks(coroutine^)
-        if !unfinished {
-            coroutine^ = nil
-        }
-    }
-    return
-}
-
-pass :: proc(caller: Caller) {
-    swap_stacks((^Coroutine)(caller))
-}
-
-unsafe_resume :: proc(coroutine: ^Coroutine) -> (unfinished: bool) {
-    return swap_stacks(coroutine)
-}
+swap_stacks :proc "c" (^Coroutine) -> (finished: bool):
+    asm_swap_stacks
 
 when ODIN_OS != .Windows && ODIN_ARCH == .amd64 {
     foreign import assembly "amd64_posix.asm"
@@ -83,8 +68,8 @@ when ODIN_OS != .Windows && ODIN_ARCH == .amd64 {
 } else {
     #assert(false, "unsupported architecture")
 }
-@(private)
 foreign assembly {
-    create_coroutine :: proc "odin" (^Coroutine, rawptr, proc"odin"(Caller, rawptr), proc"odin"(^Coroutine, rawptr), rawptr) ---
-    swap_stacks      :: proc(^Coroutine) -> bool ---
+    @(private)
+    asm_init        :: proc "odin" (^Coroutine, rawptr, proc"odin"(Caller, rawptr), proc"odin"(^Coroutine, rawptr), rawptr) ---
+    asm_swap_stacks :: proc "c"    (^Coroutine) -> bool ---
 }

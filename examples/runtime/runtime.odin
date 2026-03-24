@@ -4,23 +4,17 @@ package ex_rt
 
 import "base:intrinsics"
 
-import co "../../../coroutines/primitives"
-
-Coroutine   :: co.Coroutine
-Caller      :: co.Caller
+import co   "../../../coroutines"
+import prim "../../../coroutines/primitives"
 
 STACK_CAPACITY  :: 64 * 1024
 
-create_raw :: proc(f: proc(Caller, rawptr), arg: rawptr) -> ^Coroutine {
-    stack := co.allocate_stack(STACK_CAPACITY)
+create_raw :: proc(f: proc(co.Caller, rawptr), arg: rawptr) -> ^co.Coroutine {
+    stack := prim.allocate_stack(STACK_CAPACITY)
     
-    return co.create(stack, f, arg, on_finish, nil)
+    return prim.create(stack, f, arg, on_finish, nil)
 
-    on_finish :: proc(coroutine: ^Coroutine, _arg: rawptr) {
-        co.free_stack(coroutine.stack)
+    on_finish :: proc(coroutine: ^co.Coroutine, _arg: rawptr) {
+        prim.free_stack(coroutine.stack)
     }
 }
-
-resume  :: co.resume
-
-pass    :: co.pass

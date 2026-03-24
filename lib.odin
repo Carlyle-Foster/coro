@@ -3,31 +3,18 @@ package co_def
 import "base:runtime"
 import "base:intrinsics"
 
-import "core:sync"
+import prim "primitives"
 
-_ :: sync
 _ :: runtime
 _ :: intrinsics
-
-import prim "primitives"
 
 THREAD_SAFE :: #config(THREAD_SAFE, true)
 
 Coroutine   :: prim.Coroutine
 Caller      :: prim.Caller
-Stack       :: prim.Stack
 
 Routine     :: ^Coroutine // if u want to be cute about it
 routine     :: create
-
-COROUTINE_LOCAL_STORAGE :: 4*1024
-#assert(COROUTINE_LOCAL_STORAGE % 16 == 0)
-GENERATOR_STORAGE_OFFFSET :: 3*1024
-
-STACK_CAPACITY  :: 64 * 1024 - COROUTINE_LOCAL_STORAGE
-
-free_stacks: [dynamic]Stack
-free_stacks_mutex: sync.Mutex
 
 create :: proc{
     create_0,
@@ -37,19 +24,28 @@ create :: proc{
     create_4,
 }
 
-resume:
-    proc(coroutine: ^^Coroutine)-> (unfinished: bool) : prim.resume
+resume :: proc(coroutine: ^^Coroutine) -> (unfinished: bool) {
+    if coroutine^ != nil {
+        unfinished = prim.swap_stacks(coroutine^)
+        if !unfinished {
+            coroutine^ = nil
+        }
+    }
+    return
+}
 
-pass:
-    proc(caller: Caller) : prim.pass
+pass :: proc(caller: Caller) {
+    prim.swap_stacks((^Coroutine)(caller))
+}
 
-unsafe_resume:
-    proc(coroutine: ^Coroutine) -> (unfinished: bool) : prim.unsafe_resume
+unsafe_resume :: proc(coroutine: ^Coroutine) -> (unfinished: bool) {
+    return prim.swap_stacks(coroutine)
+}
 
 chain :: proc(c: Caller, coroutines: ..^Coroutine) {
     for &coroutine in coroutines {
-        for prim.resume(&coroutine) {
-            prim.pass(c)
+        for resume(&coroutine) {
+            pass(c)
         }
     }
 }
@@ -64,7 +60,7 @@ parallel :: proc(c: Caller, coroutines: ..^Coroutine) {
 
 parallel_iter :: proc(coroutines: ^[]^ Coroutine) -> (ok: bool) {
     for &coroutine in coroutines {
-        if prim.resume(&coroutine) {
+        if resume(&coroutine) {
             ok = true
         }
     }
@@ -100,38 +96,4 @@ create_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3:
 @(private)
 passer :: proc($F: typeid, $f: F, c: Caller, args: ^$A) {
     f(c, expand_values(args^))
-}
-
-create_raw :: proc(f: proc(Caller, rawptr), args: $Args) -> ^Coroutine {
-    ARG_STORAGE :: GENERATOR_STORAGE_OFFFSET
-    #assert(size_of(Args) <= ARG_STORAGE)
-
-    stack: Stack
-    {
-        when THREAD_SAFE { sync.mutex_guard(&free_stacks_mutex) }
-        if len(free_stacks) > 0 {
-            stack = pop(&free_stacks)
-        }
-    }
-    if stack == nil {
-        err: runtime.Allocator_Error
-        stack, err = prim.allocate_stack(STACK_CAPACITY + COROUTINE_LOCAL_STORAGE)
-
-        ensure(err == .None)
-    }
-    storage := cast(^Args)raw_data(stack[STACK_CAPACITY:])
-    storage^ = args
-
-    return prim.create(stack[:STACK_CAPACITY], f, storage, on_finish, nil)
-
-    on_finish :: proc(coroutine: ^Coroutine, _arg: rawptr) {
-        err: runtime.Allocator_Error
-        { 
-            when THREAD_SAFE { sync.mutex_guard(&free_stacks_mutex) }
-            _, err = append(&free_stacks, coroutine.stack)
-        }
-        if err != .None {
-            prim.free_stack(coroutine.stack)
-        }
-    }
 }
