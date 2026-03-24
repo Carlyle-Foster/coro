@@ -4,7 +4,7 @@
 ```odin
 package my_coroutine
 
-import co "../"
+import co "path/to/coro"
 
 import "core:fmt"
 
@@ -48,7 +48,7 @@ A resounding success
 ```odin
 package my_coroutine
 
-import co "../"
+import co "path/to/coro"
 
 import "core:fmt"
 
@@ -75,4 +75,13 @@ main :: proc() {
 This is..
 ..a test
 A resounding success
+```
+
+### Installation
+```shell
+cd your-project
+git clone https://github.com/Carlyle-Foster/coro.git
+```
+```odin
+import co "coro"
 ```
