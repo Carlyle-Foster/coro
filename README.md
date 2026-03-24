@@ -85,3 +85,8 @@ git clone https://github.com/Carlyle-Foster/coro.git
 ```odin
 import co "coro"
 ```
+
+
+
+thank u to [tsoding's](https://tsoding.github.io/) C coroutine [library](https://github.com/tsoding/coroutines), our distant ancestor.  
+the ship of theseus has sailed indeed...
