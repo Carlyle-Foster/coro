@@ -33,6 +33,8 @@ global asm_swap_stacks
     push rdx
     push rbp
     push rbx
+    push r8  ; not callee saved, but needed to pass args to f
+    push r11 ; for alignment
     push r12
     push r13
     push r14
@@ -66,6 +68,8 @@ global asm_swap_stacks
     pop r14
     pop r13
     pop r12
+    pop r11 ; for alignment
+    pop r8  ; see the corresponding note in save_registers
     pop rbx
     pop rbp
     pop rdx
