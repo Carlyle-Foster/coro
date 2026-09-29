@@ -27,6 +27,7 @@ global asm_swap_stacks
     mov rsp, rax
 %endmacro
 
+; FIXME: ymm0-ymm7 and zmm0-zmm7 also need to be saved if present
 %macro save_registers 0
     push rdi
     push rsi
