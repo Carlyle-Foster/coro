@@ -69,22 +69,22 @@ parallel_iter :: proc(coroutines: ^[]^ Coroutine) -> (ok: bool) {
 
 create_0 :: proc($f: proc(Caller)) -> ^Coroutine {
     return create_raw(passer, int(0))
-    
+
     passer :: proc(c: Caller, _: rawptr) {
         f(c)
     }
 }
 create_1 :: proc($f: proc(Caller, $T1), arg1: T1) -> ^Coroutine {
-    return create_raw(auto_cast passer, arg1)
+    return create_raw(passer, arg1)
 
-    passer :: proc(c: Caller, arg: ^T1) {
-        f(c, arg^)
+    passer :: proc(c: Caller, args: rawptr) {
+        f(c, (^T1)(args)^)
     }
 }
 create_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
     BUNDLE :: struct {T1, T2}
     
-    return create_raw(auto_cast passer, BUNDLE{arg1, arg2})
+    return create_raw(passer, BUNDLE{arg1, arg2})
 
     passer :: proc(c: Caller, args: rawptr) {
         f(c, expand_values((^BUNDLE)(args)^))
@@ -93,7 +93,7 @@ create_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
 create_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
     BUNDLE :: struct {T1, T2, T3}
 
-    return create_raw(auto_cast passer, BUNDLE{arg1, arg2, arg3})
+    return create_raw(passer, BUNDLE{arg1, arg2, arg3})
 
     passer :: proc(c: Caller, args: rawptr) {
         f(c, expand_values((^BUNDLE)(args)^))
@@ -102,7 +102,7 @@ create_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) 
 create_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
     BUNDLE :: struct {T1, T2, T3, T4}
 
-    return create_raw(auto_cast passer, BUNDLE{arg1, arg2, arg3, arg4})
+    return create_raw(passer, BUNDLE{arg1, arg2, arg3, arg4})
     
     passer :: proc(c: Caller, args: rawptr) {
         f(c, expand_values((^BUNDLE)(args)^))
