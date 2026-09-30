@@ -85,19 +85,19 @@ create_2 :: proc($f: proc(Caller, $T1, $T2), arg1: T1, arg2: T2) -> ^Coroutine {
     passer :: proc(c: Caller, args: rawptr) {
         f(c, expand_values((^BUNDLE)(args)^))
     }
-    return create_raw(auto_cast passer, &BUNDLE{arg1, arg2})
+    return create_raw(auto_cast passer, BUNDLE{arg1, arg2})
 }
 create_3 :: proc($f: proc(Caller, $T1, $T2, $T3), arg1: T1, arg2: T2, arg3: T3) -> ^Coroutine {
     BUNDLE :: struct {T1, T2, T3}
     passer :: proc(c: Caller, args: rawptr) {
         f(c, expand_values((^BUNDLE)(args)^))
     }
-    return create_raw(auto_cast passer, &BUNDLE{arg1, arg2, arg3})
+    return create_raw(auto_cast passer, BUNDLE{arg1, arg2, arg3})
 }
 create_4 :: proc($f: proc(Caller, $T1, $T2, $T3, $T4), arg1: T1, arg2: T2, arg3: T3, arg4: T4) -> ^Coroutine {
     BUNDLE :: struct {T1, T2, T3, T4}
     passer :: proc(c: Caller, args: rawptr) {
         f(c, expand_values((^BUNDLE)(args)^))
     }
-    return create_raw(auto_cast passer, &BUNDLE{arg1, arg2, arg3, arg4})
+    return create_raw(auto_cast passer, BUNDLE{arg1, arg2, arg3, arg4})
 }
